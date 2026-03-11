@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SRT Compare</title>
+<style>
+/* ============================================
+   SRT Compare - Self-Contained Stylesheet
+   Dark theme with glassmorphism effects
+   ============================================ */
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --bg-tertiary: #25253d;
+  --bg-glass: rgba(30, 30, 50, 0.7);
+  --bg-glass-light: rgba(50, 50, 80, 0.5);
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0b8;
+  --text-muted: #6b6b80;
+  --accent-primary: #6366f1;
+  --accent-secondary: #8b5cf6;
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --success: #10b981;
+  --success-bg: rgba(16, 185, 129, 0.15);
+  --warning: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.15);
+  --error: #ef4444;
+  --error-bg: rgba(239, 68, 68, 0.15);
+  --info: #3b82f6;
+  --info-bg: rgba(59, 130, 246, 0.15);
+  --match-bg: rgba(16, 185, 129, 0.12);
+  --match-border: rgba(16, 185, 129, 0.4);
+  --time-diff-bg: rgba(245, 158, 11, 0.12);
+  --time-diff-border: rgba(245, 158, 11, 0.4);
+  --dialogue-diff-bg: rgba(239, 68, 68, 0.12);
+  --dialogue-diff-border: rgba(239, 68, 68, 0.4);
+  --addition-bg: rgba(59, 130, 246, 0.12);
+  --addition-border: rgba(59, 130, 246, 0.4);
+  --removal-bg: rgba(107, 107, 128, 0.12);
+  --removal-border: rgba(107, 107, 128, 0.4);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+body {
+  font-family: var(--font-family);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: '';
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(99,102,241,0.15) 0%, transparent 40%),
+              radial-gradient(circle at 80% 80%, rgba(139,92,246,0.1) 0%, transparent 40%);
+  pointer-events: none; z-index: -1;
+}
+a { color: var(--accent-primary); text-decoration: none; }
+a:hover { color: var(--accent-secondary); }
+button { font-family: inherit; cursor: pointer; }
+input, textarea, select { font-family: inherit; }
+h1 { font-size: 2.5rem; font-weight: 600; }
+h2 { font-size: 2rem; font-weight: 600; }
+h3 { font-size: 1.5rem; font-weight: 600; }
+
+/* Header */
+.header {
+  position: fixed; top: 0; left: 0; right: 0; height: 72px;
+  background: var(--bg-glass); backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-color); z-index: 100;
+}
+.header-content {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 100%; max-width: 1400px; margin: 0 auto; padding: 0 24px;
+}
+.logo {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 1.25rem; font-weight: 700; color: var(--text-primary); cursor: pointer;
+}
+.logo-icon {
+  width: 36px; height: 36px; background: var(--accent-gradient);
+  border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.nav { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.nav-link {
+  padding: 8px 14px; color: var(--text-secondary); border-radius: var(--radius-sm);
+  transition: all 0.2s ease; cursor: pointer; font-size: 0.9rem; white-space: nowrap;
+  background: none; border: none; display: inline-flex; align-items: center; gap: 6px;
+}
+.nav-link:hover, .nav-link.active { color: var(--text-primary); background: var(--bg-tertiary); }
+
+/* Container */
+.container {
+  width: 100%; max-width: 1400px; margin: 0 auto;
+  padding: 96px 24px 48px; min-height: 100vh; position: relative; z-index: 1;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 24px; font-size: 0.95rem; font-weight: 500;
+  border: none; border-radius: var(--radius-md); transition: all 0.2s ease; cursor: pointer;
+}
+.btn-primary {
+  background: var(--accent-gradient); color: white;
+  box-shadow: 0 4px 15px rgba(99,102,241,0.4);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99,102,241,0.5); }
+.btn-secondary {
+  background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);
+}
+.btn-secondary:hover { background: var(--bg-glass-light); }
+.btn-danger { background: var(--error); color: white; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+.btn-sm { padding: 8px 16px; font-size: 0.85rem; }
+.btn-icon { background: transparent; color: var(--text-secondary); border: none; padding: 8px 12px; border-radius: var(--radius-sm); }
+.btn-icon:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+
+/* Alerts */
+.alert { padding: 14px 20px; border-radius: var(--radius-md); margin-bottom: 20px; display: flex; align-items: center; gap: 12px; }
+.alert-error { background: var(--error-bg); color: var(--error); border: 1px solid rgba(239,68,68,0.3); }
+.alert-success { background: var(--success-bg); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
+
+/* Spinner */
+.spinner { width: 40px; height: 40px; border: 3px solid var(--border-color); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
+.spinner-small { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; color: var(--text-muted); gap: 16px; }
+
+/* Stats Grid */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 3rem; }
+.stat-card {
+  background: var(--bg-glass); backdrop-filter: blur(10px); border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg); padding: 1.5rem; display: flex; gap: 1.5rem; transition: all 0.3s ease;
+}
+.stat-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); border-color: var(--accent-primary); }
+.stat-icon { color: var(--accent-primary); opacity: 0.8; font-size: 2rem; }
+.stat-label { color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 0.5rem; }
+.stat-value { font-size: 2rem; font-weight: 700; color: var(--text-primary); }
+
+/* Dashboard */
+.dashboard { max-width: 1200px; margin: 0 auto; }
+.dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 12px; }
+.comparison-list { display: flex; flex-direction: column; gap: 1rem; }
+.comparison-card {
+  background: var(--bg-glass); backdrop-filter: blur(10px); border: 1px solid var(--border-color);
+  border-radius: var(--radius-md); padding: 1.5rem; display: flex; justify-content: space-between;
+  align-items: center; transition: all 0.3s ease; cursor: pointer;
+}
+.comparison-card:hover { transform: translateX(8px); border-color: var(--accent-primary); box-shadow: var(--shadow-md); }
+.comparison-info h3 { color: var(--text-primary); margin-bottom: 0.5rem; font-size: 1.1rem; }
+.comparison-date { color: var(--text-secondary); font-size: 0.875rem; }
+.comparison-stats { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.stat-badge { padding: 0.375rem 0.875rem; background: var(--bg-tertiary); border-radius: var(--radius-sm); font-size: 0.875rem; color: var(--text-secondary); }
+.status-badge { padding: 0.375rem 0.875rem; border-radius: var(--radius-sm); font-size: 0.875rem; font-weight: 600; }
+.status-success { background: var(--success-bg); color: var(--success); }
+.status-warning { background: var(--warning-bg); color: var(--warning); }
+.status-error { background: var(--error-bg); color: var(--error); }
+
+/* Empty State */
+.empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-secondary); }
+.empty-state h3 { color: var(--text-primary); margin-bottom: 0.5rem; }
+.empty-state p { margin-bottom: 1.5rem; }
+.empty-state .icon { font-size: 4rem; opacity: 0.5; margin-bottom: 1.5rem; }
+
+/* Compare Page */
+.compare-page { max-width: 1000px; margin: 0 auto; }
+.page-header { text-align: center; margin-bottom: 3rem; }
+.page-header p { color: var(--text-secondary); }
+.file-upload-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 2rem; margin-bottom: 2rem; align-items: center; }
+.file-upload-card {
+  background: var(--bg-glass); backdrop-filter: blur(10px); border: 2px dashed var(--border-color);
+  border-radius: var(--radius-lg); padding: 2rem; transition: all 0.3s ease;
+}
+.file-upload-card:hover { border-color: var(--accent-primary); transform: translateY(-4px); }
+.file-upload-card.has-file { border-color: var(--success); border-style: solid; }
+.file-upload-label {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; text-align: center; min-height: 200px;
+}
+.upload-icon { color: var(--accent-primary); margin-bottom: 1rem; opacity: 0.8; font-size: 3rem; }
+.file-name { color: var(--text-secondary); font-size: 0.875rem; margin-top: 0.5rem; max-width: 200px; word-break: break-word; }
+.file-input { display: none; }
+.vs-divider {
+  display: flex; align-items: center; justify-content: center;
+  width: 60px; height: 60px; background: var(--accent-gradient); border-radius: 50%;
+  font-weight: 700; font-size: 1.25rem; color: white; box-shadow: var(--shadow-md);
+}
+.form-actions { display: flex; gap: 1rem; justify-content: center; margin-bottom: 3rem; }
+.info-section {
+  background: var(--bg-glass); backdrop-filter: blur(10px); border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg); padding: 2rem;
+}
+.info-section h3 { margin-bottom: 1rem; }
+.info-section ol { margin-left: 1.5rem; color: var(--text-secondary); }
+.info-section li { margin-bottom: 0.5rem; }
+
+/* Detail Page */
+.detail-page { max-width: 1400px; margin: 0 auto; }
+.detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 12px; }
+.header-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.comparison-header { text-align: center; margin-bottom: 3rem; }
+.file-names { display: flex; align-items: center; justify-content: center; gap: 1rem; margin: 1rem 0; flex-wrap: wrap; }
+.file-badge { padding: 0.5rem 1rem; background: var(--bg-glass); border: 1px solid var(--border-color); border-radius: var(--radius-md); font-weight: 500; }
+.vs-text { color: var(--accent-primary); font-weight: 700; }
+.summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 3rem; }
+.summary-card {
+  background: var(--bg-glass); backdrop-filter: blur(10px); border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg); padding: 1.25rem; text-align: center; transition: all 0.3s ease; cursor: pointer;
+}
+.summary-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
+.summary-card h3 { font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.75rem; font-weight: 500; }
+.summary-value { font-size: 2rem; font-weight: 700; color: var(--text-primary); }
+.summary-card.diff-none { border-color: var(--match-border); }
+.summary-card.diff-none .summary-value { color: var(--success); }
+.summary-card.diff-time { border-color: var(--time-diff-border); }
+.summary-card.diff-time .summary-value { color: var(--warning); }
+.summary-card.diff-dialogue { border-color: var(--dialogue-diff-border); }
+.summary-card.diff-dialogue .summary-value { color: var(--error); }
+.summary-card.diff-addition { border-color: var(--addition-border); }
+.summary-card.diff-addition .summary-value { color: var(--info); }
+.summary-card.diff-removal { border-color: var(--removal-border); }
+.summary-card.diff-removal .summary-value { color: var(--text-muted); }
+.summary-card.active-filter { border-color: var(--accent-primary) !important; border-width: 2px; }
+
+/* Results Table */
+.results-section { margin-bottom: 3rem; }
+.results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 12px; }
+.results-actions { display: flex; gap: 0.75rem; }
+.results-table {
+  background: var(--bg-glass); backdrop-filter: blur(10px); border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg); overflow-x: auto;
+}
+.results-table table { width: 100%; border-collapse: collapse; min-width: 800px; }
+.results-table th { background: var(--bg-tertiary); padding: 1rem; text-align: left; font-weight: 600; color: var(--text-secondary); border-bottom: 1px solid var(--border-color); }
+.results-table td { padding: 1rem; border-bottom: 1px solid var(--border-color); vertical-align: top; }
+.results-table tr:last-child td { border-bottom: none; }
+.results-table tr.diff-none { background: var(--match-bg); }
+.results-table tr.diff-time { background: var(--time-diff-bg); }
+.results-table tr.diff-dialogue { background: var(--dialogue-diff-bg); }
+.results-table tr.diff-addition { background: var(--addition-bg); }
+.results-table tr.diff-removal { background: var(--removal-bg); }
+.subtitle-cell { display: flex; flex-direction: column; gap: 0.5rem; }
+.subtitle-header { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.subtitle-index { font-weight: 600; color: var(--accent-primary); font-size: 0.85rem; }
+.subtitle-cell .time { font-family: 'Monaco','Courier New',monospace; font-size: 0.8rem; color: var(--text-secondary); }
+.text-input {
+  width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm); padding: 0.5rem; color: var(--text-primary);
+  font-family: inherit; font-size: 0.9rem; line-height: 1.5; resize: vertical; min-height: 60px;
+}
+.text-input:focus { outline: none; border-color: var(--accent-primary); background: var(--bg-secondary); }
+.text-input:disabled { background: var(--bg-primary); color: var(--text-muted); cursor: not-allowed; opacity: 0.6; }
+.badge { padding: 0.25rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.75rem; font-weight: 600; display: inline-block; white-space: nowrap; }
+.badge.diff-none { background: var(--success-bg); color: var(--success); }
+.badge.diff-time { background: var(--warning-bg); color: var(--warning); }
+.badge.diff-dialogue { background: var(--error-bg); color: var(--error); }
+.badge.diff-addition { background: var(--addition-bg); color: var(--info); }
+.badge.diff-removal { background: var(--removal-bg); color: var(--text-muted); }
+.details-cell { color: var(--text-secondary); font-size: 0.875rem; font-style: italic; }
+
+/* Settings Page */
+.settings-page { max-width: 700px; margin: 0 auto; }
+.settings-card { background: var(--bg-glass); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem; margin-bottom: 1.5rem; }
+.settings-card h2 { margin-bottom: 0.5rem; font-size: 1.25rem; }
+.settings-card .desc { color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1.5rem; }
+.form-group { margin-bottom: 1.25rem; }
+.form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.9rem; }
+.form-input {
+  width: 100%; padding: 12px 16px; font-size: 1rem; background: var(--bg-secondary);
+  border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-primary);
+}
+.form-input:focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.2); }
+.form-select { width: 100%; padding: 12px 16px; font-size: 1rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-primary); }
+.form-select:focus { outline: none; border-color: var(--accent-primary); }
+.key-status { margin-top: 8px; font-size: 0.85rem; color: var(--success); }
+
+/* Translate Page */
+.translate-page { max-width: 600px; margin: 0 auto; }
+
+/* Section */
+.section { margin-top: 2rem; }
+.section h2 { margin-bottom: 1.5rem; }
+
+/* Page views */
+.page-view { display: none; }
+.page-view.active { display: block; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.5rem; }
+  .container { padding: 80px 16px 32px; }
+  .file-upload-grid { grid-template-columns: 1fr; gap: 1rem; }
+  .vs-divider { width: 100%; height: 40px; border-radius: var(--radius-md); }
+  .dashboard-header { flex-direction: column; align-items: flex-start; }
+  .header-actions { flex-wrap: wrap; }
+  .detail-header { flex-direction: column; align-items: flex-start; }
+  .nav { gap: 2px; }
+  .nav-link { padding: 6px 10px; font-size: 0.8rem; }
+  .comparison-card { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .results-header { flex-direction: column; align-items: flex-start; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-content">
+    <div class="logo" onclick="navigate('dashboard')">
+      <div class="logo-icon">📄</div>
+      <span>SRT Compare</span>
+    </div>
+    <nav class="nav" id="main-nav">
+      <button class="nav-link" data-page="dashboard" onclick="navigate('dashboard')">📋 History</button>
+      <button class="nav-link" data-page="translate-history" onclick="navigate('translate-history')">📑 Translate History</button>
+      <button class="nav-link" data-page="compare" onclick="navigate('compare')">➕ Compare</button>
+      <button class="nav-link" data-page="translate" onclick="navigate('translate')">🌐 Translate</button>
+      <button class="nav-link" data-page="settings" onclick="navigate('settings')">⚙️ Settings</button>
+    </nav>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ==================== DASHBOARD PAGE ==================== -->
+  <div id="page-dashboard" class="page-view">
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <h1>Dashboard</h1>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <button class="btn btn-secondary" onclick="navigate('translate')">🌐 Translate</button>
+          <button class="btn btn-primary" onclick="navigate('compare')">📄 New Comparison</button>
+        </div>
+      </div>
+      <div id="dashboard-stats" class="stats-grid"></div>
+      <div class="section">
+        <h2>Recent Comparisons</h2>
+        <div id="dashboard-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== COMPARE PAGE ==================== -->
+  <div id="page-compare" class="page-view">
+    <div class="compare-page">
+      <div class="page-header">
+        <h1>Compare SRT Files</h1>
+        <p>Upload two subtitle files to compare their differences</p>
+      </div>
+      <div id="compare-error"></div>
+      <form id="compare-form" onsubmit="handleCompare(event)">
+        <div class="file-upload-grid">
+          <div class="file-upload-card" id="card-file1">
+            <label class="file-upload-label" for="file1">
+              <div class="upload-icon" id="icon-file1">📤</div>
+              <h3>Base File</h3>
+              <p class="file-name" id="name-file1">Click to upload first .srt file</p>
+              <input id="file1" type="file" accept=".srt" class="file-input" onchange="onFileSelect(this,'file1')">
+            </label>
+          </div>
+          <div class="vs-divider"><span>VS</span></div>
+          <div class="file-upload-card" id="card-file2">
+            <label class="file-upload-label" for="file2">
+              <div class="upload-icon" id="icon-file2">📤</div>
+              <h3>Comparison File</h3>
+              <p class="file-name" id="name-file2">Click to upload second .srt file</p>
+              <input id="file2" type="file" accept=".srt" class="file-input" onchange="onFileSelect(this,'file2')">
+            </label>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="resetCompare()">Reset</button>
+          <button type="submit" class="btn btn-primary" id="compare-btn">Compare Files</button>
+        </div>
+      </form>
+      <div class="info-section">
+        <h3>How it works</h3>
+        <ol>
+          <li>Upload your base/reference SRT file</li>
+          <li>Upload the file you want to compare against</li>
+          <li>Click "Compare Files" to analyze differences</li>
+          <li>View detailed comparison results</li>
+          <li>Export results as JSON or CSV</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TRANSLATE PAGE ==================== -->
+  <div id="page-translate" class="page-view">
+    <div class="translate-page">
+      <div class="page-header">
+        <h1>Translate Subtitles</h1>
+        <p>Upload an English SRT file and get a bilingual SRT with translation</p>
+      </div>
+      <div style="margin-bottom:16px">
+        <button class="btn btn-secondary btn-sm" onclick="navigate('translate-history')">View Translation History</button>
+      </div>
+      <div id="translate-error"></div>
+      <form id="translate-form" onsubmit="handleTranslate(event)">
+        <div style="max-width:400px;margin:0 auto 2rem;">
+          <div class="file-upload-card" id="card-translate-file">
+            <label class="file-upload-label" for="translate-file">
+              <div class="upload-icon" id="icon-translate-file">📤</div>
+              <h3>English SRT File</h3>
+              <p class="file-name" id="name-translate-file">Click to upload .srt file</p>
+              <input id="translate-file" type="file" accept=".srt" class="file-input" onchange="onFileSelect(this,'translate-file')">
+            </label>
+          </div>
+        </div>
+        <div class="form-group" style="max-width:320px;margin:0 auto;">
+          <label for="target-lang">🌐 Target Language</label>
+          <select id="target-lang" class="form-select">
+            <option value="ar">Arabic</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="hi">Hindi</option>
+            <option value="ta">Tamil</option>
+            <option value="te">Telugu</option>
+            <option value="de">German</option>
+            <option value="pt">Portuguese</option>
+            <option value="zh">Chinese</option>
+            <option value="ja">Japanese</option>
+          </select>
+        </div>
+        <div class="form-actions" style="margin-top:24px;">
+          <button type="button" class="btn btn-secondary" onclick="resetTranslate()">Reset</button>
+          <button type="submit" class="btn btn-primary" id="translate-btn">Translate & Download</button>
+        </div>
+      </form>
+      <div class="info-section" style="margin-top:2rem;">
+        <h3>How it works</h3>
+        <ol>
+          <li>Upload your English subtitle file (.srt)</li>
+          <li>Choose the target language</li>
+          <li>Click "Translate & Download" to get a new SRT file</li>
+          <li>The new file has English text with the translation below each segment</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TRANSLATE HISTORY PAGE ==================== -->
+  <div id="page-translate-history" class="page-view">
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <h1>Translation History</h1>
+        <button class="btn btn-primary" onclick="navigate('translate')">🌐 New Translation</button>
+      </div>
+      <div id="translate-history-list"></div>
+    </div>
+  </div>
+
+  <!-- ==================== HISTORY DETAIL PAGE ==================== -->
+  <div id="page-detail" class="page-view">
+    <div class="detail-page" id="detail-content"></div>
+  </div>
+
+  <!-- ==================== SETTINGS PAGE ==================== -->
+  <div id="page-settings" class="page-view">
+    <div class="settings-page">
+      <div class="page-header">
+        <h1>⚙️ Settings</h1>
+        <p>Configure your API keys and preferences</p>
+      </div>
+      <div id="settings-message"></div>
+      <div class="settings-card">
+        <h2>🔑 OpenAI Configuration</h2>
+        <p class="desc">Configure OpenAI API for translation features</p>
+        <div class="form-group">
+          <label>OpenAI API Key</label>
+          <input type="password" id="settings-api-key" class="form-input" placeholder="sk-proj-...">
+          <div id="api-key-status" class="key-status"></div>
+        </div>
+        <div class="form-group">
+          <label>GPT Model</label>
+          <select id="settings-model" class="form-select">
+            <option value="gpt-4o">GPT-4o (Most Capable)</option>
+            <option value="gpt-4o-mini">GPT-4o Mini (Fast & Affordable)</option>
+            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+            <option value="gpt-4">GPT-4</option>
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+          <button class="btn btn-secondary" onclick="clearCache()">🗑️ Clear Translation Cache</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// =============================================
+// API BASE URL
+// =============================================
+const API = '/api';
+
+// =============================================
+// ROUTING
+// =============================================
+let currentPage = 'dashboard';
+let currentDetailId = null;
+
+function navigate(page, param) {
+  // Hide all pages
+  document.querySelectorAll('.page-view').forEach(p => p.classList.remove('active'));
+  // Update nav
+  document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+  
+  currentPage = page;
+  
+  if (page === 'detail' && param) {
+    currentDetailId = param;
+    document.getElementById('page-detail').classList.add('active');
+    loadComparisonDetail(param);
+  } else {
+    const el = document.getElementById('page-' + page);
+    if (el) el.classList.add('active');
+    const navBtn = document.querySelector(`.nav-link[data-page="${page}"]`);
+    if (navBtn) navBtn.classList.add('active');
+    
+    // Trigger page load
+    if (page === 'dashboard') loadDashboard();
+    else if (page === 'translate-history') loadTranslateHistory();
+    else if (page === 'settings') loadSettings();
+  }
+  
+  // Update URL hash
+  window.location.hash = param ? `${page}/${param}` : page;
+}
+
+// Handle browser back/forward
+window.addEventListener('hashchange', () => {
+  const hash = window.location.hash.slice(1) || 'dashboard';
+  const parts = hash.split('/');
+  navigate(parts[0], parts[1]);
+});
+
+// =============================================
+// DASHBOARD
+// =============================================
+async function loadDashboard() {
+  const statsEl = document.getElementById('dashboard-stats');
+  const listEl = document.getElementById('dashboard-list');
+  
+  listEl.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading...</p></div>';
+  
+  try {
+    const resp = await fetch(`${API}/comparisons?limit=10`);
+    let comparisons = [];
+    if (resp.ok) {
+      const data = await resp.json();
+      comparisons = Array.isArray(data) ? data : [];
+    } else if (resp.status === 503) {
+      // DB not available — show empty state with info
+      statsEl.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-icon">⚠️</div>
+          <div>
+            <p class="stat-label">Database</p>
+            <p class="stat-value">Offline</p>
+          </div>
+        </div>
+      `;
+      listEl.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">🗄️</div>
+          <h3>MongoDB not connected</h3>
+          <p>History features require MongoDB. Comparison and translation still work without it.</p>
+          <button class="btn btn-primary" onclick="navigate('compare')">Compare SRT Files</button>
+        </div>
+      `;
+      return;
+    } else {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.detail || `Server error (${resp.status})`);
+    }
+    
+    // Stats
+    const completed = comparisons.filter(c => c.status === 'completed').length;
+    const rate = comparisons.length > 0 ? Math.round((completed / comparisons.length) * 100) + '%' : 'N/A';
+    statsEl.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-icon">📄</div>
+        <div>
+          <p class="stat-label">Total Comparisons</p>
+          <p class="stat-value">${comparisons.length}</p>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📈</div>
+        <div>
+          <p class="stat-label">Completion Rate</p>
+          <p class="stat-value">${rate}</p>
+        </div>
+      </div>
+    `;
+    
+    // List
+    if (comparisons.length === 0) {
+      listEl.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">📄</div>
+          <h3>No comparisons yet</h3>
+          <p>Start by comparing two SRT files</p>
+          <button class="btn btn-primary" onclick="navigate('compare')">Create First Comparison</button>
+        </div>
+      `;
+    } else {
+      listEl.innerHTML = comparisons.map(c => {
+        const s = c.summary || {};
+        const diffs = (s.dialogue_differences || 0) + (s.time_differences || 0) + (s.additions || 0) + (s.removals || 0);
+        const statusClass = c.status === 'completed' ? 'status-success' : c.status === 'processing' ? 'status-warning' : 'status-error';
+        return `
+          <div class="comparison-card" onclick="navigate('detail','${c.id}')">
+            <div class="comparison-info">
+              <h3>${esc(c.file1_name)} vs ${esc(c.file2_name)}</h3>
+              <p class="comparison-date">${new Date(c.created_at).toLocaleString()}</p>
+            </div>
+            <div class="comparison-stats">
+              <span class="stat-badge">${s.total_file1 || 0} subtitles</span>
+              <span class="stat-badge">${diffs} differences</span>
+              <span class="status-badge ${statusClass}">${c.status || 'completed'}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  } catch (e) {
+    listEl.innerHTML = `<div class="alert alert-error">Failed to load comparisons: ${esc(e.message)}</div>`;
+  }
+}
+
+// =============================================
+// COMPARE
+// =============================================
+function onFileSelect(input, key) {
+  const file = input.files[0];
+  const card = document.getElementById('card-' + key);
+  const nameEl = document.getElementById('name-' + key);
+  const iconEl = document.getElementById('icon-' + key);
+  if (file && file.name.toLowerCase().endsWith('.srt')) {
+    card.classList.add('has-file');
+    nameEl.textContent = file.name;
+    iconEl.textContent = '📄';
+  } else {
+    card.classList.remove('has-file');
+    nameEl.textContent = 'Click to upload .srt file';
+    iconEl.textContent = '📤';
+    if (file) showError('compare-error', 'Please select a valid .srt file');
+  }
+}
+
+function resetCompare() {
+  document.getElementById('file1').value = '';
+  document.getElementById('file2').value = '';
+  ['file1','file2'].forEach(k => {
+    document.getElementById('card-' + k).classList.remove('has-file');
+    document.getElementById('name-' + k).textContent = 'Click to upload .srt file';
+    document.getElementById('icon-' + k).textContent = '📤';
+  });
+  document.getElementById('compare-error').innerHTML = '';
+}
+
+async function handleCompare(e) {
+  e.preventDefault();
+  const f1 = document.getElementById('file1').files[0];
+  const f2 = document.getElementById('file2').files[0];
+  if (!f1 || !f2) { showError('compare-error', 'Please select both files'); return; }
+  
+  const btn = document.getElementById('compare-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-small"></span> Comparing...';
+  document.getElementById('compare-error').innerHTML = '';
+  
+  try {
+    const fd = new FormData();
+    fd.append('file1', f1);
+    fd.append('file2', f2);
+    fd.append('time_tolerance_ms', '0');
+    fd.append('shift_window_ms', '30000');
+    fd.append('lookahead', '300');
+    fd.append('normalize_dialogue', 'true');
+    fd.append('save_history', 'true');
+    
+    const resp = await fetch(`${API}/compare`, { method: 'POST', body: fd });
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.detail || 'Compare failed');
+    }
+    const data = await resp.json();
+    if (data.comparison_id) {
+      navigate('detail', data.comparison_id);
+    }
+  } catch (err) {
+    showError('compare-error', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Compare Files';
+  }
+}
+
+// =============================================
+// TRANSLATE
+// =============================================
+function resetTranslate() {
+  document.getElementById('translate-file').value = '';
+  document.getElementById('card-translate-file').classList.remove('has-file');
+  document.getElementById('name-translate-file').textContent = 'Click to upload .srt file';
+  document.getElementById('icon-translate-file').textContent = '📤';
+  document.getElementById('target-lang').value = 'ar';
+  document.getElementById('translate-error').innerHTML = '';
+}
+
+async function handleTranslate(e) {
+  e.preventDefault();
+  const file = document.getElementById('translate-file').files[0];
+  if (!file) { showError('translate-error', 'Please select an English .srt file'); return; }
+  
+  const lang = document.getElementById('target-lang').value;
+  const btn = document.getElementById('translate-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-small"></span> Translating...';
+  document.getElementById('translate-error').innerHTML = '';
+  
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('target_lang', lang);
+    
+    const resp = await fetch(`${API}/translate`, { method: 'POST', body: fd });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: 'Translation failed' }));
+      throw new Error(err.detail || 'Translation failed');
+    }
+    
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const langNames = {ar:'Arabic',es:'Spanish',fr:'French',hi:'Hindi',ta:'Tamil',te:'Telugu',de:'German',pt:'Portuguese',zh:'Chinese',ja:'Japanese'};
+    a.download = file.name.replace(/\.srt$/i, '') + ` - ${langNames[lang] || lang}.srt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    showError('translate-error', err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Translate & Download';
+  }
+}
+
+// =============================================
+// TRANSLATE HISTORY
+// =============================================
+async function loadTranslateHistory() {
+  const listEl = document.getElementById('translate-history-list');
+  listEl.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading...</p></div>';
+  
+  try {
+    const resp = await fetch(`${API}/translations?skip=0&limit=50`);
+    if (resp.status === 503) {
+      listEl.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">🗄️</div>
+          <h3>MongoDB not connected</h3>
+          <p>Translation history requires MongoDB. You can still translate files without saving history.</p>
+          <button class="btn btn-primary" onclick="navigate('translate')">Translate Now</button>
+        </div>
+      `;
+      return;
+    }
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.detail || `Server error (${resp.status})`);
+    }
+    const items = await resp.json();
+    
+    if (!items.length) {
+      listEl.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">📄</div>
+          <h3>No translations yet</h3>
+          <p>Translate an English SRT to create your first entry.</p>
+          <button class="btn btn-primary" onclick="navigate('translate')">Translate Now</button>
+        </div>
+      `;
+      return;
+    }
+    
+    listEl.innerHTML = `<div class="comparison-list">${items.map(item => `
+      <div class="comparison-card" style="cursor:default;">
+        <div class="comparison-info">
+          <h3>${esc(item.source_filename || 'Unknown')}</h3>
+          <p class="comparison-date">${new Date(item.created_at).toLocaleString()} · Target: ${esc(item.target_lang || '')}</p>
+        </div>
+        <div class="comparison-stats">
+          <button class="btn btn-sm btn-primary" onclick="downloadTranslation('${item.id}','${esc(item.source_filename || '')}','${esc(item.target_lang || '')}')">⬇️ Download</button>
+          <button class="btn btn-sm btn-secondary" style="background:var(--error-bg);color:var(--error);" onclick="deleteTranslation('${item.id}',this)">🗑️ Delete</button>
+        </div>
+      </div>
+    `).join('')}</div>`;
+  } catch (e) {
+    listEl.innerHTML = `<div class="alert alert-error">Failed to load translations: ${esc(e.message)}</div>`;
+  }
+}
+
+async function downloadTranslation(id, filename, lang) {
+  try {
+    const resp = await fetch(`${API}/translations/${id}/download`);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (filename || `translation_${id}`).replace(/\.srt$/i,'') + ` - ${lang}.srt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) { alert('Download failed: ' + e.message); }
+}
+
+async function deleteTranslation(id, btn) {
+  if (!confirm('Delete this translation from history?')) return;
+  try {
+    await fetch(`${API}/translations/${id}`, { method: 'DELETE' });
+    btn.closest('.comparison-card').remove();
+  } catch (e) { alert('Delete failed: ' + e.message); }
+}
+
+// =============================================
+// COMPARISON DETAIL
+// =============================================
+let detailData = null;
+let editedResults = [];
+let filterType = 'all';
+
+async function loadComparisonDetail(id) {
+  const container = document.getElementById('detail-content');
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading comparison...</p></div>';
+  
+  try {
+    const resp = await fetch(`${API}/comparisons/${id}`);
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Comparison not found');
+    }
+    const data = await resp.json();
+    
+    const results = data.results || {};
+    
+    // Normalize text for matching
+    const normalizeText = t => (t||'').toLowerCase().trim().replace(/[^\w\s]/g,'');
+    
+    const flatResults = [];
+    let gi = 1;
+    
+    // Match removals with additions
+    const removals = results.removals || [];
+    const additions = results.additions || [];
+    const matchedR = new Set(), matchedA = new Set();
+    const reclassified = [];
+    
+    removals.forEach((rem, rIdx) => {
+      const nrt = normalizeText(rem.dialogue);
+      additions.forEach((add, aIdx) => {
+        if (matchedA.has(aIdx)) return;
+        if (nrt === normalizeText(add.dialogue) && nrt !== '') {
+          matchedR.add(rIdx);
+          matchedA.add(aIdx);
+          reclassified.push({
+            index: gi++, original_index_1: rem.index, original_index_2: add.index,
+            difference_type: 'time_difference',
+            file1_time: `${rem.time_start} --> ${rem.time_end}`,
+            file2_time: `${add.time_start} --> ${add.time_end}`,
+            file1_text: rem.dialogue, file2_text: add.dialogue,
+            details: 'Same text, repositioned in timeline'
+          });
+        }
+      });
+    });
+    
+    flatResults.push(...reclassified);
+    
+    (results.matches || []).forEach(item => {
+      flatResults.push({
+        index: gi++, original_index_1: item.index, original_index_2: item.index,
+        difference_type: 'no_difference',
+        file1_time: `${item.time_start} --> ${item.time_end}`,
+        file2_time: `${item.time_start} --> ${item.time_end}`,
+        file1_text: item.dialogue, file2_text: item.dialogue,
+        details: 'Perfect match'
+      });
+    });
+    
+    (results.time_differences || []).forEach(item => {
+      flatResults.push({
+        index: gi++, original_index_1: item.index_1, original_index_2: item.index_2,
+        difference_type: 'time_difference',
+        file1_time: `${item.time_start_1} --> ${item.time_end_1}`,
+        file2_time: `${item.time_start_2} --> ${item.time_end_2}`,
+        file1_text: item.dialogue, file2_text: item.dialogue,
+        details: 'Same text, different timing'
+      });
+    });
+    
+    (results.dialogue_differences || []).forEach(item => {
+      flatResults.push({
+        index: gi++, original_index_1: item.index_1, original_index_2: item.index_2,
+        difference_type: 'dialogue_mismatch',
+        file1_time: `${item.time_start_1} --> ${item.time_end_1}`,
+        file2_time: `${item.time_start_2} --> ${item.time_end_2}`,
+        file1_text: item.dialogue_1, file2_text: item.dialogue_2,
+        details: 'Different dialogue text'
+      });
+    });
+    
+    removals.forEach((item, idx) => {
+      if (!matchedR.has(idx)) {
+        flatResults.push({
+          index: gi++, original_index_1: item.index, original_index_2: null,
+          difference_type: 'removal',
+          file1_time: `${item.time_start} --> ${item.time_end}`,
+          file2_time: '---',
+          file1_text: item.dialogue, file2_text: '',
+          details: 'Segment deleted in File 2'
+        });
+      }
+    });
+    
+    additions.forEach((item, idx) => {
+      if (!matchedA.has(idx)) {
+        flatResults.push({
+          index: gi++, original_index_1: null, original_index_2: item.index,
+          difference_type: 'addition',
+          file1_time: '---',
+          file2_time: `${item.time_start} --> ${item.time_end}`,
+          file1_text: '', file2_text: item.dialogue,
+          details: 'New segment added in File 2'
+        });
+      }
+    });
+    
+    // Sort by timestamp
+    flatResults.sort((a, b) => {
+      const getTs = s => { const m = (s||'').match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})/); return m ? +m[1]*3600000 + +m[2]*60000 + +m[3]*1000 + +m[4] : null; };
+      const tA = getTs(a.file1_time) ?? getTs(a.file2_time) ?? 0;
+      const tB = getTs(b.file1_time) ?? getTs(b.file2_time) ?? 0;
+      return tA !== tB ? tA - tB : (a.original_index_1||a.original_index_2||0) - (b.original_index_1||b.original_index_2||0);
+    });
+    flatResults.forEach((r,i) => r.index = i+1);
+    
+    // Summary
+    const summary = { total:0, no_difference:0, time_difference:0, dialogue_mismatch:0, additions:0, removals:0 };
+    flatResults.forEach(r => {
+      summary.total++;
+      if (r.difference_type === 'no_difference') summary.no_difference++;
+      else if (r.difference_type === 'time_difference') summary.time_difference++;
+      else if (r.difference_type === 'dialogue_mismatch') summary.dialogue_mismatch++;
+      else if (r.difference_type === 'addition') summary.additions++;
+      else if (r.difference_type === 'removal') summary.removals++;
+    });
+    
+    detailData = { ...data, results: flatResults, summary };
+    editedResults = flatResults.map(r => ({...r}));
+    filterType = 'all';
+    renderDetail(id);
+    
+  } catch (e) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">❌</div>
+        <h2>${esc(e.message)}</h2>
+        <button class="btn btn-primary" onclick="navigate('dashboard')">Back to Dashboard</button>
+      </div>
+    `;
+  }
+}
+
+function renderDetail(id) {
+  const d = detailData;
+  const s = d.summary;
+  const filtered = filterType === 'all' ? editedResults :
+    editedResults.filter(r => {
+      if (filterType === 'match') return r.difference_type === 'no_difference';
+      if (filterType === 'time_difference') return r.difference_type === 'time_difference';
+      if (filterType === 'dialogue_difference') return r.difference_type === 'dialogue_mismatch';
+      if (filterType === 'addition') return r.difference_type === 'addition';
+      if (filterType === 'removal') return r.difference_type === 'removal';
+      return false;
+    });
+  
+  const af = t => filterType === t ? 'active-filter' : '';
+  
+  document.getElementById('detail-content').innerHTML = `
+    <div class="detail-header">
+      <button class="btn btn-icon" onclick="navigate('dashboard')">← Back</button>
+      <div class="header-actions">
+        <button class="btn btn-sm ${d.status==='completed'?'btn-primary':'btn-secondary'}" onclick="updateStatus('${id}','completed')">✅ Complete</button>
+        <button class="btn btn-sm ${d.status==='processing'?'btn-primary':'btn-secondary'}" onclick="updateStatus('${id}','processing')">⏳ Processing</button>
+        <button class="btn btn-sm ${d.status==='failed'?'btn-primary':'btn-secondary'}" onclick="updateStatus('${id}','failed')">❌ Failed</button>
+        <button class="btn btn-sm btn-primary" onclick="downloadSRT('${id}')">⬇️ Download SRT</button>
+        <button class="btn btn-sm btn-secondary" onclick="exportComparison('${id}','json')">📥 JSON</button>
+        <button class="btn btn-sm btn-secondary" onclick="exportComparison('${id}','csv')">📥 CSV</button>
+        <button class="btn btn-sm btn-secondary" style="background:var(--error-bg);color:var(--error);" onclick="deleteComparison('${id}')">🗑️ Delete</button>
+      </div>
+    </div>
+    
+    <div class="comparison-header">
+      <h1>Comparison Details</h1>
+      <div class="file-names">
+        <span class="file-badge">${esc(d.file1_name)}</span>
+        <span class="vs-text">vs</span>
+        <span class="file-badge">${esc(d.file2_name)}</span>
+      </div>
+      <p style="color:var(--text-secondary);font-size:0.875rem;">Created: ${new Date(d.created_at).toLocaleString()}</p>
+    </div>
+    
+    <div class="summary-cards">
+      <div class="summary-card ${af('all')}" onclick="setFilter('all','${id}')">
+        <h3>Total Segments</h3>
+        <p class="summary-value">${s.total}</p>
+      </div>
+      <div class="summary-card diff-none ${af('match')}" onclick="setFilter('match','${id}')">
+        <h3>Matches</h3>
+        <p class="summary-value">${s.no_difference}</p>
+      </div>
+      <div class="summary-card diff-time ${af('time_difference')}" onclick="setFilter('time_difference','${id}')">
+        <h3>Time Diffs</h3>
+        <p class="summary-value">${s.time_difference}</p>
+      </div>
+      <div class="summary-card diff-dialogue ${af('dialogue_difference')}" onclick="setFilter('dialogue_difference','${id}')">
+        <h3>Text Diffs</h3>
+        <p class="summary-value">${s.dialogue_mismatch}</p>
+      </div>
+      <div class="summary-card diff-addition ${af('addition')}" onclick="setFilter('addition','${id}')">
+        <h3>Additions</h3>
+        <p class="summary-value">${s.additions}</p>
+      </div>
+      <div class="summary-card diff-removal ${af('removal')}" onclick="setFilter('removal','${id}')">
+        <h3>Removals</h3>
+        <p class="summary-value">${s.removals}</p>
+      </div>
+    </div>
+    
+    <div class="results-section">
+      <div class="results-header">
+        <div>
+          <h2>Detailed Comparison</h2>
+          ${filterType !== 'all' ? `<p style="color:var(--accent-primary);font-size:0.875rem;margin-top:0.5rem;">
+            Filtered: Showing ${filtered.length} of ${editedResults.length} segments
+            <button onclick="setFilter('all','${id}')" style="margin-left:0.5rem;text-decoration:underline;background:none;border:none;color:var(--accent-primary);cursor:pointer;">Clear filter</button>
+          </p>` : ''}
+        </div>
+        <div class="results-actions">
+          <button class="btn btn-secondary btn-sm" onclick="editedResults=detailData.results.map(r=>({...r}));renderDetail('${id}')">Reset Changes</button>
+          <button class="btn btn-primary btn-sm" onclick="saveChanges('${id}')">Save Changes</button>
+        </div>
+      </div>
+      <div class="results-table">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Status</th><th>File 1</th><th>File 2</th><th>Details</th></tr>
+          </thead>
+          <tbody>
+            ${filtered.map((r, i) => {
+              const cls = r.difference_type === 'no_difference' ? 'diff-none' :
+                r.difference_type === 'time_difference' ? 'diff-time' :
+                r.difference_type === 'dialogue_mismatch' ? 'diff-dialogue' :
+                r.difference_type === 'addition' ? 'diff-addition' : 'diff-removal';
+              const label = r.difference_type === 'no_difference' ? 'Match' :
+                r.difference_type === 'time_difference' ? 'Time Diff' :
+                r.difference_type === 'dialogue_mismatch' ? 'Text Diff' :
+                r.difference_type === 'addition' ? 'Addition' : 'Removal';
+              const globalIdx = editedResults.indexOf(r);
+              return `
+                <tr class="${cls}">
+                  <td>${r.index}</td>
+                  <td><span class="badge ${cls}">${label}</span></td>
+                  <td>
+                    <div class="subtitle-cell">
+                      <div class="subtitle-header">
+                        <span class="subtitle-index">#${r.original_index_1 || '-'}</span>
+                        <span class="time">${esc(r.file1_time)}</span>
+                      </div>
+                      <textarea class="text-input" rows="2" data-idx="${globalIdx}" data-field="file1_text"
+                        ${r.difference_type === 'addition' ? 'disabled placeholder="Not in File 1"' : ''}
+                        onchange="editedResults[${globalIdx}].file1_text=this.value">${esc(r.file1_text||'')}</textarea>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="subtitle-cell">
+                      <div class="subtitle-header">
+                        <span class="subtitle-index">#${r.original_index_2 || '-'}</span>
+                        <span class="time">${esc(r.file2_time)}</span>
+                      </div>
+                      <textarea class="text-input" rows="2" data-idx="${globalIdx}" data-field="file2_text"
+                        ${r.difference_type === 'removal' ? 'disabled placeholder="Not in File 2"' : ''}
+                        onchange="editedResults[${globalIdx}].file2_text=this.value">${esc(r.file2_text||'')}</textarea>
+                    </div>
+                  </td>
+                  <td><div class="details-cell">${esc(r.details||'')}</div></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function setFilter(type, id) {
+  filterType = filterType === type ? 'all' : type;
+  renderDetail(id);
+}
+
+async function updateStatus(id, status) {
+  try {
+    const fd = new FormData();
+    fd.append('status', status);
+    await fetch(`${API}/comparisons/${id}/status`, { method: 'PATCH', body: fd });
+    detailData.status = status;
+    renderDetail(id);
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function downloadSRT(id) {
+  try {
+    const resp = await fetch(`${API}/comparisons/${id}/download-srt`);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `comparison_${id}_bilingual.srt`;
+    const cd = resp.headers.get('content-disposition');
+    if (cd) { const m = cd.match(/filename="?(.+)"?/i); if (m) a.download = m[1]; }
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) { alert('Download failed: ' + e.message); }
+}
+
+async function exportComparison(id, format) {
+  try {
+    const resp = await fetch(`${API}/comparisons/${id}/export?format=${format}`);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `comparison_${id}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) { alert('Export failed: ' + e.message); }
+}
+
+async function deleteComparison(id) {
+  if (!confirm('Are you sure you want to delete this comparison?')) return;
+  try {
+    await fetch(`${API}/comparisons/${id}`, { method: 'DELETE' });
+    navigate('dashboard');
+  } catch (e) { alert('Delete failed: ' + e.message); }
+}
+
+async function saveChanges(id) {
+  try {
+    const updatedResults = { matches: [], time_differences: [], dialogue_differences: [], additions: [], removals: [], summary: detailData.summary };
+    editedResults.forEach(item => {
+      if (item.difference_type === 'no_difference') {
+        updatedResults.matches.push({ index: item.original_index_1, time_start: item.file1_time.split(' --> ')[0], time_end: item.file1_time.split(' --> ')[1], dialogue: item.file1_text });
+      } else if (item.difference_type === 'time_difference') {
+        updatedResults.time_differences.push({ index_1: item.original_index_1, index_2: item.original_index_2, time_start_1: item.file1_time.split(' --> ')[0], time_end_1: item.file1_time.split(' --> ')[1], time_start_2: item.file2_time.split(' --> ')[0], time_end_2: item.file2_time.split(' --> ')[1], dialogue: item.file1_text || item.file2_text });
+      } else if (item.difference_type === 'dialogue_mismatch') {
+        updatedResults.dialogue_differences.push({ index_1: item.original_index_1, index_2: item.original_index_2, time_start_1: item.file1_time.split(' --> ')[0], time_end_1: item.file1_time.split(' --> ')[1], time_start_2: item.file2_time.split(' --> ')[0], time_end_2: item.file2_time.split(' --> ')[1], dialogue_1: item.file1_text, dialogue_2: item.file2_text });
+      } else if (item.difference_type === 'addition') {
+        updatedResults.additions.push({ index: item.original_index_2, time_start: item.file2_time.split(' --> ')[0], time_end: item.file2_time.split(' --> ')[1], dialogue: item.file2_text });
+      } else if (item.difference_type === 'removal') {
+        updatedResults.removals.push({ index: item.original_index_1, time_start: item.file1_time.split(' --> ')[0], time_end: item.file1_time.split(' --> ')[1], dialogue: item.file1_text });
+      }
+    });
+    
+    const resp = await fetch(`${API}/comparisons/${id}/results`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedResults)
+    });
+    if (!resp.ok) throw new Error((await resp.json()).detail || 'Save failed');
+    alert('Changes saved successfully!');
+  } catch (e) { alert('Failed to save: ' + e.message); }
+}
+
+// =============================================
+// SETTINGS
+// =============================================
+async function loadSettings() {
+  try {
+    const resp = await fetch(`${API}/settings`);
+    const data = await resp.json();
+    document.getElementById('settings-api-key').value = data.openai_api_key || '';
+    document.getElementById('settings-model').value = data.gpt_model || 'gpt-4o-mini';
+    if (data.openai_api_key) {
+      const k = data.openai_api_key;
+      document.getElementById('api-key-status').textContent = '✓ Key configured: ' + k.substring(0,7) + '...' + k.substring(k.length-4);
+    } else {
+      document.getElementById('api-key-status').textContent = '';
+    }
+  } catch (e) { console.error('Failed to load settings', e); }
+}
+
+async function saveSettings() {
+  try {
+    const fd = new FormData();
+    fd.append('openai_api_key', document.getElementById('settings-api-key').value);
+    fd.append('gpt_model', document.getElementById('settings-model').value);
+    const resp = await fetch(`${API}/settings`, { method: 'POST', body: fd });
+    if (!resp.ok) throw new Error('Save failed');
+    showSettingsMessage('success', 'Settings saved successfully!');
+    loadSettings();
+  } catch (e) { showSettingsMessage('error', e.message); }
+}
+
+async function clearCache() {
+  if (!confirm('Clear all cached translations? This cannot be undone.')) return;
+  try {
+    const resp = await fetch(`${API}/clear-cache`, { method: 'POST' });
+    const data = await resp.json();
+    showSettingsMessage('success', data.message || 'Cache cleared!');
+  } catch (e) { showSettingsMessage('error', e.message); }
+}
+
+function showSettingsMessage(type, msg) {
+  const el = document.getElementById('settings-message');
+  el.innerHTML = `<div class="alert alert-${type === 'success' ? 'success' : 'error'}">${esc(msg)}</div>`;
+  setTimeout(() => el.innerHTML = '', 5000);
+}
+
+// =============================================
+// UTILITIES
+// =============================================
+function esc(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = String(str);
+  return div.innerHTML;
+}
+
+function showError(containerId, msg) {
+  document.getElementById(containerId).innerHTML = `<div class="alert alert-error">⚠️ ${esc(msg)}</div>`;
+}
+
+// =============================================
+// INIT
+// =============================================
+window.addEventListener('DOMContentLoaded', () => {
+  const hash = window.location.hash.slice(1) || 'dashboard';
+  const parts = hash.split('/');
+  navigate(parts[0] || 'dashboard', parts[1]);
+});
+</script>
+</body>
+</html>
