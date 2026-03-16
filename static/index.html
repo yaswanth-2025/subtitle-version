@@ -475,27 +475,53 @@ h3 { font-size: 1.5rem; font-weight: 600; }
     <div class="settings-page">
       <div class="page-header">
         <h1>⚙️ Settings</h1>
-        <p>Configure your API keys and preferences</p>
+        <p>Configure translation providers and API keys</p>
       </div>
       <div id="settings-message"></div>
+      
+      <!-- Translation Provider Selection -->
       <div class="settings-card">
-        <h2>🔑 OpenAI Configuration</h2>
-        <p class="desc">Configure OpenAI API for translation features</p>
+        <h2>🤖 Translation Provider</h2>
+        <p class="desc">Select your AI translation provider</p>
         <div class="form-group">
-          <label>OpenAI API Key</label>
-          <input type="password" id="settings-api-key" class="form-input" placeholder="sk-proj-...">
-          <div id="api-key-status" class="key-status"></div>
-        </div>
-        <div class="form-group">
-          <label>GPT Model</label>
-          <select id="settings-model" class="form-select">
-            <option value="gpt-4o">GPT-4o (Most Capable)</option>
-            <option value="gpt-4o-mini">GPT-4o Mini (Fast & Affordable)</option>
-            <option value="gpt-4-turbo">GPT-4 Turbo</option>
-            <option value="gpt-4">GPT-4</option>
-            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+          <label>Provider</label>
+          <select id="settings-provider" class="form-select" onchange="onProviderChange()">
+            <option value="openai">OpenAI (ChatGPT)</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="claude">Anthropic Claude</option>
           </select>
         </div>
+        <div class="form-group">
+          <label>Model</label>
+          <select id="settings-model" class="form-select">
+            <!-- Populated dynamically based on provider -->
+          </select>
+        </div>
+      </div>
+
+      <!-- API Keys -->
+      <div class="settings-card">
+        <h2>🔑 API Keys</h2>
+        <p class="desc">Enter API keys for your chosen providers</p>
+        
+        <div class="form-group" id="openai-key-group">
+          <label>OpenAI API Key</label>
+          <input type="password" id="settings-openai-key" class="form-input" placeholder="sk-proj-...">
+          <div id="openai-key-status" class="key-status"></div>
+        </div>
+        
+        <div class="form-group" id="gemini-key-group">
+          <label>Google Gemini API Key</label>
+          <input type="password" id="settings-gemini-key" class="form-input" placeholder="AIza...">
+          <div id="gemini-key-status" class="key-status"></div>
+        </div>
+        
+        <div class="form-group" id="claude-key-group">
+          <label>Anthropic Claude API Key</label>
+          <input type="password" id="settings-claude-key" class="form-input" placeholder="sk-ant-...">
+          <div id="claude-key-status" class="key-status"></div>
+        </div>
+
         <div style="display:flex;gap:12px;">
           <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
           <button class="btn btn-secondary" onclick="clearCache()">🗑️ Clear Translation Cache</button>
@@ -1214,26 +1240,89 @@ async function saveChanges(id) {
 // =============================================
 // SETTINGS
 // =============================================
+// Available models (loaded from API)
+let availableModels = {
+  openai: ['gpt-4o-mini'],
+  gemini: ['gemini-1.5-flash'],
+  claude: ['claude-3-5-haiku-20241022']
+};
+
+async function loadAvailableModels() {
+  try {
+    const resp = await fetch(`${API}/models`);
+    availableModels = await resp.json();
+  } catch (e) {
+    console.error('Failed to load models:', e);
+  }
+}
+
+function onProviderChange() {
+  const provider = document.getElementById('settings-provider').value;
+  const modelSelect = document.getElementById('settings-model');
+  modelSelect.innerHTML = '';
+  
+  const models = availableModels[provider] || [];
+  models.forEach(model => {
+    const opt = document.createElement('option');
+    opt.value = model;
+    opt.textContent = model;
+    modelSelect.appendChild(opt);
+  });
+}
+
 async function loadSettings() {
   try {
+    await loadAvailableModels(); // Load models first
+    
     const resp = await fetch(`${API}/settings`);
     const data = await resp.json();
-    document.getElementById('settings-api-key').value = data.openai_api_key || '';
-    document.getElementById('settings-model').value = data.gpt_model || 'gpt-4o-mini';
+    
+    // Set provider and trigger model loading
+    document.getElementById('settings-provider').value = data.translation_provider || 'openai';
+    onProviderChange();
+    
+    // Set model
+    document.getElementById('settings-model').value = data.translation_model || 'gpt-4o-mini';
+    
+    // Set API keys
+    document.getElementById('settings-openai-key').value = data.openai_api_key || '';
+    document.getElementById('settings-gemini-key').value = data.gemini_api_key || '';
+    document.getElementById('settings-claude-key').value = data.claude_api_key || '';
+    
+    // Status text updates
     if (data.openai_api_key) {
       const k = data.openai_api_key;
-      document.getElementById('api-key-status').textContent = '✓ Key configured: ' + k.substring(0,7) + '...' + k.substring(k.length-4);
+      document.getElementById('openai-key-status').textContent = '✓ Configured: ' + k.substring(0,7) + '...' + k.substring(k.length-4);
     } else {
-      document.getElementById('api-key-status').textContent = '';
+      document.getElementById('openai-key-status').textContent = '';
     }
+    
+    if (data.gemini_api_key) {
+      const k = data.gemini_api_key;
+      document.getElementById('gemini-key-status').textContent = '✓ Configured: ' + k.substring(0,7) + '...' + k.substring(k.length-4);
+    } else {
+      document.getElementById('gemini-key-status').textContent = '';
+    }
+
+    if (data.claude_api_key) {
+      const k = data.claude_api_key;
+      document.getElementById('claude-key-status').textContent = '✓ Configured: ' + k.substring(0,7) + '...' + k.substring(k.length-4);
+    } else {
+      document.getElementById('claude-key-status').textContent = '';
+    }
+    
   } catch (e) { console.error('Failed to load settings', e); }
 }
 
 async function saveSettings() {
   try {
     const fd = new FormData();
-    fd.append('openai_api_key', document.getElementById('settings-api-key').value);
-    fd.append('gpt_model', document.getElementById('settings-model').value);
+    fd.append('openai_api_key', document.getElementById('settings-openai-key').value);
+    fd.append('gemini_api_key', document.getElementById('settings-gemini-key').value);
+    fd.append('claude_api_key', document.getElementById('settings-claude-key').value);
+    fd.append('translation_provider', document.getElementById('settings-provider').value);
+    fd.append('translation_model', document.getElementById('settings-model').value);
+    
     const resp = await fetch(`${API}/settings`, { method: 'POST', body: fd });
     if (!resp.ok) throw new Error('Save failed');
     showSettingsMessage('success', 'Settings saved successfully!');

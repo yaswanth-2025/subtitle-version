@@ -69,10 +69,10 @@ def get_english_for_comparison(text: str) -> str:
         return ""
     if len(lines) == 1:
         return lines[0]
-    # Multiple lines: pick the line that is predominantly Latin (English)
-    for line in lines:
-        if _is_predominantly_latin(line):
-            return line
+    # Multiple lines: pick the lines that are predominantly Latin (English)
+    english_lines = [line for line in lines if _is_predominantly_latin(line)]
+    if english_lines:
+        return "\n".join(english_lines)
     return lines[0]
 
 
@@ -162,10 +162,11 @@ def translate_srt_content(
         text = seg.get("text", "")
         english = seg.get("english_text") or get_english_for_comparison(text) or text
         translated = translate_fn(english) if english.strip() else ""
-        # Save as: English first, then translated text below (per workflow)
-        segment_text = english.strip()
+        # Save as: Translated text first (e.g., Arabic), then English text below
         if translated.strip():
-            segment_text += "\n" + translated.strip()
+            segment_text = translated.strip() + "\n" + english.strip()
+        else:
+            segment_text = english.strip()
         out_lines.append(str(idx))
         out_lines.append(f"{start} --> {end}")
         out_lines.append(segment_text)

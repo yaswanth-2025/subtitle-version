@@ -87,9 +87,17 @@ async def lifespan(app):
                 settings = json_mod.load(f)
                 if settings.get("openai_api_key"):
                     os.environ["OPENAI_API_KEY"] = settings["openai_api_key"]
-                if settings.get("gpt_model"):
-                    os.environ["GPT_MODEL"] = settings["gpt_model"]
-                print(f"Loaded settings from {settings_file}")
+                if settings.get("gemini_api_key"):
+                    os.environ["GEMINI_API_KEY"] = settings["gemini_api_key"]
+                if settings.get("claude_api_key"):
+                    os.environ["CLAUDE_API_KEY"] = settings["claude_api_key"]
+                if settings.get("translation_provider"):
+                    os.environ["TRANSLATION_PROVIDER"] = settings["translation_provider"]
+                if settings.get("translation_model"):
+                    os.environ["TRANSLATION_MODEL"] = settings["translation_model"]
+                print(f"✅ Loaded settings from {settings_file}")
+                print(f"   Provider: {settings.get('translation_provider', 'openai')}")
+                print(f"   Model: {settings.get('translation_model', 'gpt-4o-mini')}")
         except Exception as e:
             print(f"Error loading settings: {e}")
 
@@ -506,9 +514,22 @@ def _settings_path():
 SETTINGS_FILE = _settings_path()
 
 
+@app.get("/api/models")
+async def get_available_models():
+    """Return available models for each AI provider."""
+    from translator import MODELS
+    return MODELS
+
+
 @app.get("/api/settings")
 async def get_settings():
-    defaults = {"openai_api_key": os.environ.get("OPENAI_API_KEY", ""), "gpt_model": "gpt-4o-mini"}
+    defaults = {
+        "openai_api_key": os.environ.get("OPENAI_API_KEY", ""), 
+        "gemini_api_key": os.environ.get("GEMINI_API_KEY", ""),
+        "claude_api_key": os.environ.get("CLAUDE_API_KEY", ""),
+        "translation_provider": os.environ.get("TRANSLATION_PROVIDER", "openai"),
+        "translation_model": os.environ.get("TRANSLATION_MODEL", "gpt-4o-mini")
+    }
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, 'r') as f:
@@ -519,17 +540,37 @@ async def get_settings():
 
 
 @app.post("/api/settings")
-async def save_settings(openai_api_key: str = Form(""), gpt_model: str = Form("gpt-4o-mini")):
-    settings = {"openai_api_key": openai_api_key, "gpt_model": gpt_model}
+async def save_settings(
+    openai_api_key: str = Form(""), 
+    gemini_api_key: str = Form(""),
+    claude_api_key: str = Form(""),
+    translation_provider: str = Form("openai"),
+    translation_model: str = Form("gpt-4o-mini")
+):
+    settings = {
+        "openai_api_key": openai_api_key, 
+        "gemini_api_key": gemini_api_key,
+        "claude_api_key": claude_api_key,
+        "translation_provider": translation_provider,
+        "translation_model": translation_model
+    }
     try:
         with open(SETTINGS_FILE, 'w') as f:
             json_mod.dump(settings, f, indent=2)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save settings: {e}")
+        
     if openai_api_key:
         os.environ["OPENAI_API_KEY"] = openai_api_key
-    if gpt_model:
-        os.environ["GPT_MODEL"] = gpt_model
+    if gemini_api_key:
+        os.environ["GEMINI_API_KEY"] = gemini_api_key
+    if claude_api_key:
+        os.environ["CLAUDE_API_KEY"] = claude_api_key
+    if translation_provider:
+        os.environ["TRANSLATION_PROVIDER"] = translation_provider
+    if translation_model:
+        os.environ["TRANSLATION_MODEL"] = translation_model
+        
     return {"message": "Settings saved successfully", "settings": settings}
 
 

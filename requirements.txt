@@ -6,4 +6,9 @@ passlib[bcrypt]
 python-multipart
 pydantic[email]
 openai
+google-generativeai
+anthropic
 python-dotenv
+
+google-generativeai
+anthropic
