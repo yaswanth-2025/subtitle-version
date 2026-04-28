@@ -11,6 +11,7 @@ Supports:
 import re
 import csv
 import io
+import os
 from typing import List, Dict, Optional, Tuple, Any
 
 TIME_RE = re.compile(r"(\d{1,2}:\d{2}:\d{2}[,\.]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[,\.]\d{3})")
@@ -137,6 +138,124 @@ def parse_srt(path: str) -> List[Dict]:
 
 
 # =========================
+# ASC Parsing
+# =========================
+
+ASC_TIME_RE = re.compile(r"^(\d{1,2}:\d{2}:\d{2}:\d{2})$")
+
+
+def asc_time_to_ms(t: str, fps: int = 24) -> int:
+    """Convert ASC frame-based timecode HH:MM:SS:FF to milliseconds."""
+    parts = t.strip().split(':')
+    if len(parts) != 4:
+        raise ValueError(f"Invalid ASC timecode: {t}")
+    hh, mm, ss, ff = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
+    return (hh * 3600 + mm * 60 + ss) * 1000 + int(round(ff * 1000 / fps))
+
+
+def asc_time_to_srt_time(t: str, fps: int = 24) -> str:
+    """Convert ASC timecode HH:MM:SS:FF to SRT timecode HH:MM:SS,mmm."""
+    ms = asc_time_to_ms(t, fps)
+    return ms_to_time(ms)
+
+
+def parse_asc(path: str, fps: int = 24) -> List[Dict]:
+    """
+    Parse ASC subtitle file format.
+    Format:
+        @ headers (optional header line)
+        <index>.
+        <start_timecode HH:MM:SS:FF>
+        <end_timecode HH:MM:SS:FF>
+        <dialogue text (one or more lines)>
+        <blank line>
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+    except UnicodeDecodeError:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            content = f.read().strip()
+
+    if not content:
+        return []
+
+    # Remove header line if present (e.g. "@ headers")
+    lines = content.splitlines()
+    if lines and lines[0].strip().startswith('@'):
+        lines = lines[1:]
+
+    # Split into blocks by blank lines
+    blocks = re.split(r'\n\s*\n', "\n".join(lines))
+    subs = []
+
+    for block in blocks:
+        block_lines = [ln for ln in block.splitlines() if ln.strip()]
+        if not block_lines:
+            continue
+
+        # Parse index (e.g. "1." or "1")
+        index = None
+        line_offset = 0
+        first = block_lines[0].strip().rstrip('.')
+        if first.isdigit():
+            index = int(first)
+            line_offset = 1
+
+        # Need at least start time, end time after index
+        remaining = block_lines[line_offset:]
+        if len(remaining) < 2:
+            continue
+
+        # Parse start and end timecodes
+        start_match = ASC_TIME_RE.match(remaining[0].strip())
+        end_match = ASC_TIME_RE.match(remaining[1].strip())
+        if not start_match or not end_match:
+            continue
+
+        start_tc = start_match.group(1)
+        end_tc = end_match.group(1)
+
+        start_srt = asc_time_to_srt_time(start_tc, fps)
+        end_srt = asc_time_to_srt_time(end_tc, fps)
+        start_ms = asc_time_to_ms(start_tc, fps)
+        end_ms = asc_time_to_ms(end_tc, fps)
+
+        # Dialogue text is everything after the two timecode lines
+        text_lines = remaining[2:]
+        text = "\n".join(ln.strip() for ln in text_lines).strip()
+        if not text:
+            continue
+
+        english_text = get_english_for_comparison(text)
+
+        subs.append({
+            "index": index,
+            "start": start_srt,
+            "end": end_srt,
+            "start_ms": start_ms,
+            "end_ms": end_ms,
+            "text": text,
+            "english_text": english_text or text,
+        })
+
+    subs.sort(key=lambda x: (x["start_ms"], x["end_ms"]))
+    return subs
+
+
+# =========================
+# Generic Subtitle Parsing
+# =========================
+
+def parse_subtitle(path: str) -> List[Dict]:
+    """Auto-detect subtitle format by extension and parse accordingly."""
+    ext = os.path.splitext(path)[1].lower() if '.' in path else ''
+    if ext == '.asc':
+        return parse_asc(path)
+    return parse_srt(path)
+
+
+# =========================
 # SRT Translation (English + translation below)
 # =========================
 
@@ -235,8 +354,8 @@ def compare_srts(
     normalize_dialogue: bool = True
 ) -> List[Tuple]:
 
-    s1 = parse_srt(file1)
-    s2 = parse_srt(file2)
+    s1 = parse_subtitle(file1)
+    s2 = parse_subtitle(file2)
 
     results = []
     i = j = 0

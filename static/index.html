@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SRT Compare</title>
+<title>Subtitle Compare</title>
 <style>
 /* ============================================
    SRT Compare - Self-Contained Stylesheet
@@ -358,8 +358,8 @@ h3 { font-size: 1.5rem; font-weight: 600; }
   <div id="page-compare" class="page-view">
     <div class="compare-page">
       <div class="page-header">
-        <h1>Compare SRT Files</h1>
-        <p>Upload two subtitle files to compare their differences</p>
+        <h1>Compare Subtitle Files</h1>
+        <p>Upload two subtitle files (.srt or .asc) to compare their differences</p>
       </div>
       <div id="compare-error"></div>
       <form id="compare-form" onsubmit="handleCompare(event)">
@@ -368,8 +368,8 @@ h3 { font-size: 1.5rem; font-weight: 600; }
             <label class="file-upload-label" for="file1">
               <div class="upload-icon" id="icon-file1">📤</div>
               <h3>Base File</h3>
-              <p class="file-name" id="name-file1">Click to upload first .srt file</p>
-              <input id="file1" type="file" accept=".srt" class="file-input" onchange="onFileSelect(this,'file1')">
+              <p class="file-name" id="name-file1">Click to upload first .srt or .asc file</p>
+              <input id="file1" type="file" accept=".srt,.asc" class="file-input" onchange="onFileSelect(this,'file1')">
             </label>
           </div>
           <div class="vs-divider"><span>VS</span></div>
@@ -377,8 +377,8 @@ h3 { font-size: 1.5rem; font-weight: 600; }
             <label class="file-upload-label" for="file2">
               <div class="upload-icon" id="icon-file2">📤</div>
               <h3>Comparison File</h3>
-              <p class="file-name" id="name-file2">Click to upload second .srt file</p>
-              <input id="file2" type="file" accept=".srt" class="file-input" onchange="onFileSelect(this,'file2')">
+              <p class="file-name" id="name-file2">Click to upload second .srt or .asc file</p>
+              <input id="file2" type="file" accept=".srt,.asc" class="file-input" onchange="onFileSelect(this,'file2')">
             </label>
           </div>
         </div>
@@ -390,7 +390,7 @@ h3 { font-size: 1.5rem; font-weight: 600; }
       <div class="info-section">
         <h3>How it works</h3>
         <ol>
-          <li>Upload your base/reference SRT file</li>
+          <li>Upload your base/reference subtitle file (.srt or .asc)</li>
           <li>Upload the file you want to compare against</li>
           <li>Click "Compare Files" to analyze differences</li>
           <li>View detailed comparison results</li>
@@ -682,15 +682,16 @@ function onFileSelect(input, key) {
   const card = document.getElementById('card-' + key);
   const nameEl = document.getElementById('name-' + key);
   const iconEl = document.getElementById('icon-' + key);
-  if (file && file.name.toLowerCase().endsWith('.srt')) {
+  const ext = file ? file.name.toLowerCase().split('.').pop() : '';
+  if (file && (ext === 'srt' || ext === 'asc')) {
     card.classList.add('has-file');
     nameEl.textContent = file.name;
     iconEl.textContent = '📄';
   } else {
     card.classList.remove('has-file');
-    nameEl.textContent = 'Click to upload .srt file';
+    nameEl.textContent = 'Click to upload .srt or .asc file';
     iconEl.textContent = '📤';
-    if (file) showError('compare-error', 'Please select a valid .srt file');
+    if (file) showError('compare-error', 'Please select a valid .srt or .asc file');
   }
 }
 
@@ -699,7 +700,7 @@ function resetCompare() {
   document.getElementById('file2').value = '';
   ['file1','file2'].forEach(k => {
     document.getElementById('card-' + k).classList.remove('has-file');
-    document.getElementById('name-' + k).textContent = 'Click to upload .srt file';
+    document.getElementById('name-' + k).textContent = 'Click to upload .srt or .asc file';
     document.getElementById('icon-' + k).textContent = '📤';
   });
   document.getElementById('compare-error').innerHTML = '';

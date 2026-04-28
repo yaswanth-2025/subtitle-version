@@ -290,16 +290,20 @@ async def compare_srt_files(
     normalize_dialogue: bool = Form(True),
     save_history: bool = Form(True),
 ):
+    ALLOWED_SUBTITLE_EXTS = {'.srt', '.asc'}
     for f in [file1, file2]:
-        if not f.filename.lower().endswith('.srt'):
-            raise HTTPException(status_code=400, detail=f"Invalid file: {f.filename}. Only .srt allowed.")
+        ext = os.path.splitext(f.filename)[1].lower()
+        if ext not in ALLOWED_SUBTITLE_EXTS:
+            raise HTTPException(status_code=400, detail=f"Invalid file: {f.filename}. Only .srt and .asc allowed.")
 
     path1 = path2 = None
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".srt") as tmp1:
+        ext1 = os.path.splitext(file1.filename)[1].lower() or '.srt'
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext1) as tmp1:
             tmp1.write(await file1.read())
             path1 = tmp1.name
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".srt") as tmp2:
+        ext2 = os.path.splitext(file2.filename)[1].lower() or '.srt'
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext2) as tmp2:
             tmp2.write(await file2.read())
             path2 = tmp2.name
 
