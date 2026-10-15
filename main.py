@@ -11,6 +11,7 @@ from fastapi import FastAPI, UploadFile, Form, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.concurrency import run_in_threadpool
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional, List
@@ -33,7 +34,8 @@ from models import (
     ComparisonResult, ComparisonSummary, ComparisonResponse,
     ComparisonDetailResponse
 )
-from srt_compare import compare_srts, results_to_json, results_to_csv, translate_srt_content, generate_bilingual_srt
+import database as dbm
+from srt_compare import parse_subtitle, select_compare_text, compare_srts, results_to_json, results_to_csv, translate_srt_content, generate_bilingual_srt
 from translator import get_translator
 
 
@@ -288,6 +290,8 @@ async def compare_srt_files(
     shift_window_ms: int = Form(30000),
     lookahead: int = Form(300),
     normalize_dialogue: bool = Form(True),
+    compare_mode: str = Form("full"),
+    compare_mode2: Optional[str] = Form(None),
     save_history: bool = Form(True),
 ):
     ALLOWED_SUBTITLE_EXTS = {'.srt', '.asc'}
@@ -295,6 +299,10 @@ async def compare_srt_files(
         ext = os.path.splitext(f.filename)[1].lower()
         if ext not in ALLOWED_SUBTITLE_EXTS:
             raise HTTPException(status_code=400, detail=f"Invalid file: {f.filename}. Only .srt and .asc allowed.")
+
+    modes = ("english", "first_half", "second_half", "full")
+    if compare_mode not in modes or (compare_mode2 is not None and compare_mode2 not in modes):
+        raise HTTPException(status_code=400, detail="compare_mode must be english, first_half, second_half or full")
 
     path1 = path2 = None
     try:
@@ -313,6 +321,8 @@ async def compare_srt_files(
             shift_window_ms=shift_window_ms,
             lookahead=lookahead,
             normalize_dialogue=normalize_dialogue,
+            compare_mode=compare_mode,
+            compare_mode2=compare_mode2,
         )
         json_result = results_to_json(res)
 
@@ -516,6 +526,259 @@ def _settings_path():
     return str(d / "app_settings.json")
 
 SETTINGS_FILE = _settings_path()
+
+
+# ============== Movies (folder per movie, versions inside) ==============
+
+_SUBTITLE_EXTS = {'.srt', '.asc'}
+_COMPARE_MODES = ("english", "first_half", "second_half", "full")
+
+
+def _summary_of(row):
+    sd = _parse_results(row).get("summary", {})
+    return {
+        "matches": sd.get("matches", 0),
+        "match_percentage": sd.get("match_percentage", 0),
+        "total_file1": sd.get("total_file1", 0),
+        "total_file2": sd.get("total_file2", 0),
+    }
+
+
+async def _movie_or_404(movie_id):
+    _require_db()
+    movie = await dbm.get_movie_db(movie_id, "anonymous")
+    if not movie:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    return movie
+
+
+@app.get("/api/movies")
+async def list_movies():
+    _require_db()
+    return await dbm.list_movies_db("anonymous")
+
+
+@app.post("/api/movies")
+async def create_movie(name: str = Form(...)):
+    _require_db()
+    name = name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Movie name is required")
+    movie_id = await dbm.create_movie_db("anonymous", name)
+    if movie_id is None:
+        raise HTTPException(status_code=409, detail=f"A movie named '{name}' already exists")
+    return {"id": movie_id, "name": name}
+
+
+@app.get("/api/movies/{movie_id}")
+async def get_movie(movie_id: int):
+    movie = await _movie_or_404(movie_id)
+    versions = await dbm.list_versions_db(movie_id)
+    comparisons = []
+    for row in await dbm.get_movie_comparisons_db(movie_id):
+        comparisons.append({
+            "id": row["id"],
+            "file1_name": row["file1_name"],
+            "file2_name": row["file2_name"],
+            "status": row.get("status", "completed"),
+            "created_at": row["created_at"],
+            **_summary_of(row),
+        })
+    return {**movie, "versions": versions, "comparisons": comparisons}
+
+
+@app.delete("/api/movies/{movie_id}")
+async def delete_movie(movie_id: int):
+    await _movie_or_404(movie_id)
+    await dbm.delete_movie_db(movie_id, "anonymous")
+    return {"deleted": True}
+
+
+@app.post("/api/movies/{movie_id}/versions")
+async def add_movie_version(movie_id: int, file: UploadFile, label: str = Form("")):
+    await _movie_or_404(movie_id)
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in _SUBTITLE_EXTS:
+        raise HTTPException(status_code=400, detail="Only .srt and .asc files are allowed.")
+    content = await file.read()
+    if not content.strip():
+        raise HTTPException(status_code=400, detail="File is empty")
+    label = label.strip() or os.path.splitext(file.filename)[0]
+    version_id = await dbm.add_version_db(movie_id, label, file.filename, content)
+    return {"id": version_id, "label": label, "filename": file.filename}
+
+
+@app.delete("/api/movies/{movie_id}/versions/{version_id}")
+async def delete_movie_version(movie_id: int, version_id: int):
+    await _movie_or_404(movie_id)
+    if not await dbm.delete_version_db(movie_id, version_id):
+        raise HTTPException(status_code=404, detail="Version not found")
+    return {"deleted": True}
+
+
+def _version_segments(version):
+    """Parse a stored version into ordered segments, without touching the stored file."""
+    ext = os.path.splitext(version["filename"])[1].lower() or '.srt'
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+        tmp.write(version["content"])
+        path = tmp.name
+    try:
+        return parse_subtitle(path)
+    finally:
+        os.unlink(path)
+
+
+async def _version_or_404(movie_id, version_id):
+    version = await dbm.get_version_db(movie_id, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="Version not found")
+    return version
+
+
+@app.get("/api/movies/{movie_id}/versions/{version_id}/segments")
+async def get_version_segments(movie_id: int, version_id: int):
+    await _movie_or_404(movie_id)
+    version = await _version_or_404(movie_id, version_id)
+    segs = _version_segments(version)
+    return {
+        "version": {"id": version["id"], "label": version["label"], "filename": version["filename"]},
+        "segments": [
+            {"ord": i, "index": s["index"], "start": s["start"], "end": s["end"], "text": s["text"]}
+            for i, s in enumerate(segs)
+        ],
+        "draft": await dbm.get_draft_db(version_id),
+    }
+
+
+@app.put("/api/movies/{movie_id}/versions/{version_id}/draft")
+async def save_version_draft(movie_id: int, version_id: int, body: dict):
+    """Autosave in-progress edits against this version (the version itself is unchanged)."""
+    await _movie_or_404(movie_id)
+    await _version_or_404(movie_id, version_id)
+    items = {str(k): str(v or "") for k, v in (body.get("items") or {}).items()}
+    if not items:
+        await dbm.delete_draft_db(version_id)
+    else:
+        await dbm.save_draft_db(version_id, {"items": items, "label": str(body.get("label") or "")})
+    return {"saved": len(items)}
+
+
+@app.delete("/api/movies/{movie_id}/versions/{version_id}/draft")
+async def discard_version_draft(movie_id: int, version_id: int):
+    await _movie_or_404(movie_id)
+    await _version_or_404(movie_id, version_id)
+    await dbm.delete_draft_db(version_id)
+    return {"deleted": True}
+
+
+@app.get("/api/movies/{movie_id}/versions/{version_id}/download")
+async def download_version(movie_id: int, version_id: int):
+    await _movie_or_404(movie_id)
+    version = await _version_or_404(movie_id, version_id)
+    from urllib.parse import quote
+    return StreamingResponse(
+        io.BytesIO(version["content"]),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(version['filename'])}"},
+    )
+
+
+@app.post("/api/movies/{movie_id}/versions/{version_id}/edit")
+async def save_edited_version(movie_id: int, version_id: int, body: dict):
+    """Save edited subtitle text as the next version in the movie folder."""
+    movie = await _movie_or_404(movie_id)
+    version = await _version_or_404(movie_id, version_id)
+    segs = _version_segments(version)
+    edits = body.get("items") or {}
+    blocks = []
+    for i, s in enumerate(segs):
+        text = str(edits.get(str(i), s["text"]) or "").strip()
+        if not text:
+            continue  # a cleared row removes that subtitle from the new version
+        blocks.append(f"{len(blocks) + 1}\n{s['start']} --> {s['end']}\n{text}\n")
+    if not blocks:
+        raise HTTPException(status_code=400, detail="Nothing to save: all subtitles are empty")
+    content = ("\n".join(blocks)).encode("utf-8")
+    label = (body.get("label") or "").strip() or f"{version['label']} (edited)"
+    base_name = os.path.splitext(version["filename"])[0]
+    filename = f"{base_name}_edited.srt"
+    new_id = await dbm.add_version_db(movie["id"], label, filename, content)
+    await dbm.delete_draft_db(version_id)
+    return {"id": new_id, "label": label, "filename": filename}
+
+
+@app.post("/api/movies/{movie_id}/versions/{version_id}/translate")
+async def translate_version_rows(
+    movie_id: int,
+    version_id: int,
+    lang: str = Form("fr"),
+    ord: Optional[int] = Form(None),
+):
+    """Auto-translate rows with the configured LLM. Nothing is saved; the editor reviews it first."""
+    await _movie_or_404(movie_id)
+    version = await _version_or_404(movie_id, version_id)
+    segs = _version_segments(version)
+    targets = [ord] if ord is not None else list(range(len(segs)))
+    if any(i < 0 or i >= len(segs) for i in targets):
+        raise HTTPException(status_code=400, detail="Invalid segment")
+    translate_fn = get_translator((lang or "fr").strip().lower())
+
+    def _run():
+        out = {}
+        for i in targets:
+            src = select_compare_text(segs[i], "second_half")
+            if src.strip():
+                out[i] = translate_fn(src)
+        return out
+
+    try:
+        translated = await run_in_threadpool(_run)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+    return {"translated": {str(k): v for k, v in translated.items()}}
+
+
+@app.post("/api/movies/{movie_id}/compare")
+async def compare_movie_versions(
+    movie_id: int,
+    version1_id: int = Form(...),
+    version2_id: int = Form(...),
+    compare_mode: str = Form("full"),
+    compare_mode2: Optional[str] = Form(None),
+):
+    await _movie_or_404(movie_id)
+    if compare_mode not in _COMPARE_MODES or (compare_mode2 is not None and compare_mode2 not in _COMPARE_MODES):
+        raise HTTPException(status_code=400, detail="compare_mode must be english, first_half, second_half or full")
+    v1 = await dbm.get_version_db(movie_id, version1_id)
+    v2 = await dbm.get_version_db(movie_id, version2_id)
+    if not v1 or not v2:
+        raise HTTPException(status_code=404, detail="Version not found")
+
+    paths = []
+    try:
+        for v in (v1, v2):
+            ext = os.path.splitext(v["filename"])[1].lower() or '.srt'
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                tmp.write(v["content"])
+                paths.append(tmp.name)
+        res = compare_srts(
+            paths[0], paths[1], lookahead=300,
+            compare_mode=compare_mode, compare_mode2=compare_mode2,
+        )
+        json_result = results_to_json(res)
+        comparison_id = await dbm.insert_comparison(
+            "anonymous", v1["label"], v2["label"], json_result,
+            "completed", datetime.utcnow(), movie_id=movie_id,
+        )
+        return {"comparison_id": comparison_id, **json_result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error comparing versions: {str(e)}")
+    finally:
+        for p in paths:
+            if os.path.exists(p):
+                os.unlink(p)
 
 
 @app.get("/api/models")

@@ -54,6 +54,22 @@ def _is_predominantly_latin(s: str) -> bool:
     return latin / letters >= 0.5
 
 
+def select_compare_text(seg: Dict, mode: str = "english") -> str:
+    """Pick the text of a segment used for diffing: english | first_half | second_half | full."""
+    lines = [ln.strip() for ln in seg["text"].splitlines() if ln.strip()]
+    if mode == "full":
+        return seg["text"]
+    if mode in ("first_half", "second_half"):
+        # Latin-script lines only (skips e.g. Tamil script); the first half is
+        # the Malay text and the second half the English text.
+        latin = [ln for ln in lines if _is_predominantly_latin(ln)] or lines
+        if len(latin) < 2:
+            return "\n".join(latin) or seg["text"]
+        mid = (len(latin) + 1) // 2
+        return "\n".join(latin[:mid] if mode == "first_half" else latin[mid:])
+    return seg.get("english_text", seg["text"])
+
+
 def get_english_for_comparison(text: str) -> str:
     """
     Extract the English (base) text from a segment for version comparison.
@@ -316,12 +332,12 @@ def detect_global_time_shift(s1, s2, tolerance_ms=50, sample_size=50):
 # =========================
 
 def detect_split(A, s2, j, lookahead, normalize):
-    text_a = A.get("english_text", A["text"])
+    text_a = A["compare_text"]
     combined = ""
     end_j = min(len(s2), j + lookahead)
 
     for jj in range(j, end_j):
-        text_b = s2[jj].get("english_text", s2[jj]["text"])
+        text_b = s2[jj]["compare_text"]
         combined += " " + text_b
         if normalize_text(combined.strip()) == normalize_text(text_a):
             return jj
@@ -329,12 +345,12 @@ def detect_split(A, s2, j, lookahead, normalize):
 
 
 def detect_merge(B, s1, i, lookahead, normalize):
-    text_b = B.get("english_text", B["text"])
+    text_b = B["compare_text"]
     combined = ""
     end_i = min(len(s1), i + lookahead)
 
     for ii in range(i, end_i):
-        text_a = s1[ii].get("english_text", s1[ii]["text"])
+        text_a = s1[ii]["compare_text"]
         combined += " " + text_a
         if normalize_text(combined.strip()) == normalize_text(text_b):
             return ii
@@ -351,11 +367,23 @@ def compare_srts(
     time_tolerance_ms: int = 0,
     shift_window_ms: int = 30000,
     lookahead: int = 10,
-    normalize_dialogue: bool = True
+    normalize_dialogue: bool = True,
+    compare_mode: str = "full",
+    compare_mode2: str = None,
 ) -> List[Tuple]:
+    """
+    compare_mode: which text is diffed - "first_half" (first half of the Latin
+    lines, e.g. Malay), "second_half" (e.g. English) or "full" (all text).
+    "english" (Latin lines) is kept as the legacy behaviour.
+    compare_mode2 is the mode for file2; when None it uses compare_mode.
+    """
 
     s1 = parse_subtitle(file1)
     s2 = parse_subtitle(file2)
+    for seg in s1:
+        seg["compare_text"] = select_compare_text(seg, compare_mode)
+    for seg in s2:
+        seg["compare_text"] = select_compare_text(seg, compare_mode2 or compare_mode)
 
     results = []
     i = j = 0
@@ -385,9 +413,9 @@ def compare_srts(
             abs(A["end_ms"] - adjusted_end_B) <= time_tolerance_ms
         )
 
-        # Version tracking is performed only on English content
-        text_a = A.get("english_text", A["text"])
-        text_b = B.get("english_text", B["text"])
+        # Version tracking runs on the text selected by compare_mode
+        text_a = A["compare_text"]
+        text_b = B["compare_text"]
         text_match = (
             normalize_text(text_a) == normalize_text(text_b)
             if normalize_dialogue

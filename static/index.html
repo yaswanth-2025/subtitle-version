@@ -327,6 +327,7 @@ h3 { font-size: 1.5rem; font-weight: 600; }
     <nav class="nav" id="main-nav">
       <button class="nav-link" data-page="dashboard" onclick="navigate('dashboard')">📋 History</button>
       <button class="nav-link" data-page="translate-history" onclick="navigate('translate-history')">📑 Translate History</button>
+      <button class="nav-link" data-page="movies" onclick="navigate('movies')">🎬 Movies</button>
       <button class="nav-link" data-page="compare" onclick="navigate('compare')">➕ Compare</button>
       <button class="nav-link" data-page="translate" onclick="navigate('translate')">🌐 Translate</button>
       <button class="nav-link" data-page="settings" onclick="navigate('settings')">⚙️ Settings</button>
@@ -381,6 +382,20 @@ h3 { font-size: 1.5rem; font-weight: 600; }
               <input id="file2" type="file" accept=".srt,.asc" class="file-input" onchange="onFileSelect(this,'file2')">
             </label>
           </div>
+        </div>
+        <div class="form-group" style="margin:16px 0">
+          <label for="compare-mode1"><strong>File 1: text to compare</strong></label>
+          <select id="compare-mode1" class="form-control" style="margin-bottom:8px">
+            <option value="first_half">First half (e.g. Malay)</option>
+            <option value="second_half" selected>Second half (e.g. English)</option>
+            <option value="full">Full (all text)</option>
+          </select>
+          <label for="compare-mode2"><strong>File 2: text to compare</strong></label>
+          <select id="compare-mode2" class="form-control" style="margin-bottom:8px">
+            <option value="first_half">First half (e.g. Malay)</option>
+            <option value="second_half">Second half (e.g. English)</option>
+            <option value="full" selected>Full (all text)</option>
+          </select>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" onclick="resetCompare()">Reset</button>
@@ -470,6 +485,29 @@ h3 { font-size: 1.5rem; font-weight: 600; }
     <div class="detail-page" id="detail-content"></div>
   </div>
 
+  <!-- ==================== MOVIES PAGES ==================== -->
+  <div id="page-movies" class="page-view">
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <h1>Movies</h1>
+        <form onsubmit="createMovie(event)" style="display:flex;gap:12px;flex-wrap:wrap;">
+          <input id="new-movie-name" class="form-control" placeholder="New movie name" required style="min-width:240px">
+          <button class="btn btn-primary" type="submit">📁 New Movie Folder</button>
+        </form>
+      </div>
+      <div id="movies-error"></div>
+      <div id="movies-list"></div>
+    </div>
+  </div>
+
+  <div id="page-french" class="page-view">
+    <div class="dashboard" id="french-content"></div>
+  </div>
+
+  <div id="page-movie" class="page-view">
+    <div class="dashboard" id="movie-content"></div>
+  </div>
+
   <!-- ==================== SETTINGS PAGE ==================== -->
   <div id="page-settings" class="page-view">
     <div class="settings-page">
@@ -543,8 +581,10 @@ const API = '/api';
 // =============================================
 let currentPage = 'dashboard';
 let currentDetailId = null;
+let currentMovieId = null;
 
 function navigate(page, param) {
+  if (typeof autosaveTimer !== 'undefined' && autosaveTimer) autosaveDraft(true);  // flush a pending edit
   // Hide all pages
   document.querySelectorAll('.page-view').forEach(p => p.classList.remove('active'));
   // Update nav
@@ -552,7 +592,16 @@ function navigate(page, param) {
   
   currentPage = page;
   
-  if (page === 'detail' && param) {
+  if (page === 'french' && param) {
+    document.getElementById('page-french').classList.add('active');
+    document.querySelector('.nav-link[data-page="movies"]').classList.add('active');
+    loadFrench(param);
+  } else if (page === 'movie' && param) {
+    currentMovieId = param;
+    document.getElementById('page-movie').classList.add('active');
+    document.querySelector('.nav-link[data-page="movies"]').classList.add('active');
+    loadMovie(param);
+  } else if (page === 'detail' && param) {
     currentDetailId = param;
     document.getElementById('page-detail').classList.add('active');
     loadComparisonDetail(param);
@@ -564,6 +613,7 @@ function navigate(page, param) {
     
     // Trigger page load
     if (page === 'dashboard') loadDashboard();
+    else if (page === 'movies') loadMovies();
     else if (page === 'translate-history') loadTranslateHistory();
     else if (page === 'settings') loadSettings();
   }
@@ -725,6 +775,8 @@ async function handleCompare(e) {
     fd.append('shift_window_ms', '30000');
     fd.append('lookahead', '300');
     fd.append('normalize_dialogue', 'true');
+    fd.append('compare_mode', document.getElementById('compare-mode1').value);
+    fd.append('compare_mode2', document.getElementById('compare-mode2').value);
     fd.append('save_history', 'true');
     
     const resp = await fetch(`${API}/compare`, { method: 'POST', body: fd });
@@ -742,6 +794,258 @@ async function handleCompare(e) {
     btn.disabled = false;
     btn.innerHTML = 'Compare Files';
   }
+}
+
+// =============================================
+// MOVIES (folder per movie, versions inside)
+// =============================================
+async function loadMovies() {
+  const el = document.getElementById('movies-list');
+  document.getElementById('movies-error').innerHTML = '';
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const resp = await fetch(`${API}/movies`);
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'Could not load movies');
+    const movies = await resp.json();
+    if (!movies.length) {
+      el.innerHTML = '<div class="empty-state"><div class="icon">🎬</div><h3>No movies yet</h3><p>Create a movie folder, then upload each subtitle version into it.</p></div>';
+      return;
+    }
+    el.innerHTML = movies.map(m => `
+      <div class="comparison-card" style="cursor:pointer" onclick="navigate('movie', ${m.id})">
+        <div><h3>📁 ${esc(m.name)}</h3>
+          <p style="color:var(--text-secondary)">${m.version_count} version(s) · ${m.comparison_count} comparison(s)</p></div>
+        <button class="btn btn-secondary" onclick="event.stopPropagation(); deleteMovie(${m.id})">🗑️</button>
+      </div>`).join('');
+  } catch (err) { showError('movies-error', err.message); el.innerHTML = ''; }
+}
+
+async function createMovie(e) {
+  e.preventDefault();
+  const input = document.getElementById('new-movie-name');
+  const fd = new FormData(); fd.append('name', input.value);
+  const resp = await fetch(`${API}/movies`, { method: 'POST', body: fd });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) { showError('movies-error', data.detail || 'Could not create movie'); return; }
+  input.value = '';
+  navigate('movie', data.id);
+}
+
+async function deleteMovie(id) {
+  if (!confirm('Delete this movie folder with all its versions and comparisons?')) return;
+  await fetch(`${API}/movies/${id}`, { method: 'DELETE' });
+  loadMovies();
+}
+
+const MODE_OPTS = (sel) => ['first_half:First half (e.g. Malay)', 'second_half:Second half (e.g. English)', 'full:Full (all text)']
+  .map(o => { const [v, l] = o.split(':'); return `<option value="${v}" ${v === sel ? 'selected' : ''}>${l}</option>`; }).join('');
+
+async function loadMovie(id) {
+  const el = document.getElementById('movie-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const resp = await fetch(`${API}/movies/${id}`);
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'Movie not found');
+    const m = await resp.json();
+    const vopts = m.versions.map(v => `<option value="${v.id}">${esc(v.label)} (${esc(v.filename)})</option>`).join('');
+    const last = m.versions.length;
+    el.innerHTML = `
+      <div class="dashboard-header">
+        <h1>🎬 ${esc(m.name)}</h1>
+        <button class="btn btn-secondary" onclick="navigate('movies')">← All movies</button>
+      </div>
+      <div id="movie-error"></div>
+      <div class="section"><h2>Versions</h2>
+        <form onsubmit="uploadVersion(event, ${m.id})" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem">
+          <input id="version-label" class="form-control" placeholder="Label (e.g. v2 – final)">
+          <input id="version-file" type="file" accept=".srt,.asc" required>
+          <button class="btn btn-primary" type="submit">⬆️ Add Version</button>
+        </form>
+        ${m.versions.length ? m.versions.map((v, i) => `
+          <div class="comparison-card"><div><h3>${esc(v.label)} ${i === 0 ? '<span class="status-badge status-success">Base</span>' : ''} ${v.has_draft ? '<span class="status-badge status-warning">Draft in progress</span>' : ''}</h3>
+            <p style="color:var(--text-secondary)">${esc(v.filename)} · ${esc((v.created_at || '').slice(0, 16).replace('T', ' '))}</p></div>
+            <div style="display:flex;gap:8px">
+              <a class="btn btn-secondary" href="${API}/movies/${m.id}/versions/${v.id}/download" download>⬇️ Download</a>
+              <button class="btn btn-primary" onclick="navigate('french', '${m.id}-${v.id}')">✏️ Edit</button>
+              <button class="btn btn-secondary" onclick="deleteVersion(${m.id}, ${v.id})">🗑️</button></div></div>`).join('')
+          : '<div class="empty-state"><p>No versions yet. Upload your first subtitle file above.</p></div>'}
+      </div>
+      ${m.versions.length >= 2 ? `
+      <div class="section"><h2>Compare versions</h2>
+        <form onsubmit="compareVersions(event, ${m.id})">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div><label><strong>Base version</strong></label>
+              <select id="mv-v1" class="form-control">${vopts}</select>
+              <label><strong>Text to compare</strong></label>
+              <select id="mv-m1" class="form-control">${MODE_OPTS('second_half')}</select></div>
+            <div><label><strong>New version</strong></label>
+              <select id="mv-v2" class="form-control">${vopts}</select>
+              <label><strong>Text to compare</strong></label>
+              <select id="mv-m2" class="form-control">${MODE_OPTS('full')}</select></div>
+          </div>
+          <div class="form-actions" style="margin-top:16px"><button class="btn btn-primary" type="submit" id="mv-btn">Compare</button></div>
+        </form>
+      </div>` : ''}
+      <div class="section"><h2>Comparisons</h2>
+        ${m.comparisons.length ? m.comparisons.map(c => `
+          <div class="comparison-card" style="cursor:pointer" onclick="navigate('detail', ${c.id})">
+            <div><h3>${esc(c.file1_name)} → ${esc(c.file2_name)}</h3>
+              <p style="color:var(--text-secondary)">${c.match_percentage}% match · ${esc((c.created_at || '').slice(0, 16).replace('T', ' '))}</p></div>
+          </div>`).join('') : '<div class="empty-state"><p>No comparisons yet.</p></div>'}
+      </div>`;
+    if (last >= 2) { document.getElementById('mv-v1').selectedIndex = last - 2; document.getElementById('mv-v2').selectedIndex = last - 1; }
+  } catch (err) { el.innerHTML = ''; showError('movie-error', err.message); }
+}
+
+// ---- Edit a version: saving creates the next version in the movie folder ----
+let frenchCtx = null;
+
+async function loadFrench(param) {
+  const [movieId, versionId] = param.split('-');
+  frenchCtx = { movieId, versionId };
+  const el = document.getElementById('french-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const resp = await fetch(`${API}/movies/${movieId}/versions/${versionId}/segments`);
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'Could not load');
+    const d = await resp.json();
+    const draft = d.draft || { items: {}, label: '' };
+    const hasDraft = Object.keys(draft.items).length > 0;
+    el.innerHTML = `
+      <div class="dashboard-header">
+        <h1>✏️ Edit — ${esc(d.version.label)}</h1>
+        <button class="btn btn-secondary" onclick="navigate('movie', ${movieId})">← Back to movie</button>
+      </div>
+      <p id="fr-status" style="color:var(--text-secondary);margin-bottom:.5rem">${hasDraft ? '📝 Restored your unsaved draft.' : ''}</p>
+      <p style="color:var(--text-secondary);margin-bottom:1rem">Edit the text in any language. Changes are autosaved as a draft on this version. Saving creates a new version in this movie folder; the original version stays unchanged. Clearing a row removes that subtitle from the new version.</p>
+      <div id="french-error"></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:1rem">
+        <input id="fr-label" class="form-control" placeholder="New version name" value="${esc(draft.label || d.version.label + ' (edited)')}" style="min-width:260px">
+        <select id="fr-lang" class="form-select" title="Auto-translate language">
+          <option value="ar">Arabic</option><option value="es">Spanish</option><option value="fr">French</option>
+          <option value="hi">Hindi</option><option value="ta">Tamil</option><option value="te">Telugu</option>
+          <option value="de">German</option><option value="pt">Portuguese</option><option value="zh">Chinese</option>
+          <option value="ja">Japanese</option><option value="ms">Malay</option>
+        </select>
+        <button class="btn btn-secondary" id="fr-auto" onclick="translateFrench()">🤖 Auto-translate all rows</button>
+        <button class="btn btn-secondary" onclick="discardDraft()">↩️ Discard draft</button>
+        <button class="btn btn-primary" id="fr-save" onclick="saveFrench()">💾 Save as new version</button>
+      </div>
+      <div id="french-rows">${d.segments.map(sg => `
+        <div class="comparison-card" style="align-items:flex-start;gap:16px;margin-bottom:12px">
+          <div style="min-width:60px"><strong>#${sg.index ?? sg.ord + 1}</strong><br><small style="color:var(--text-secondary)">${esc(sg.start)}</small></div>
+          <div style="flex:1">
+            <textarea class="form-control fr-input" data-ord="${sg.ord}" data-orig="${esc(sg.text)}" rows="3" style="width:100%" oninput="scheduleAutosave()">${esc(draft.items[sg.ord] !== undefined ? draft.items[sg.ord] : sg.text)}</textarea>
+            <button class="btn btn-secondary" style="margin-top:6px" onclick="translateFrench(${sg.ord}, this)">🤖 Translate this row</button>
+          </div>
+        </div>`).join('')}</div>`;
+    document.getElementById('fr-label').addEventListener('input', scheduleAutosave);
+  } catch (err) { el.innerHTML = ''; showError('french-error', err.message); }
+}
+
+// Autosave: only rows that differ from the original are stored, as a draft on this version.
+let autosaveTimer = null;
+function draftPayload() {
+  const items = {};
+  document.querySelectorAll('.fr-input').forEach(t => { if (t.value !== t.dataset.orig) items[t.dataset.ord] = t.value; });
+  return { items, label: document.getElementById('fr-label').value };
+}
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  const st = document.getElementById('fr-status'); if (st) st.textContent = '… editing';
+  autosaveTimer = setTimeout(() => autosaveDraft(false), 1500);
+}
+async function autosaveDraft(keepalive) {
+  clearTimeout(autosaveTimer); autosaveTimer = null;
+  if (!frenchCtx || !document.getElementById('fr-label')) return;
+  const { movieId, versionId } = frenchCtx;
+  try {
+    const resp = await fetch(`${API}/movies/${movieId}/versions/${versionId}/draft`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, keepalive,
+      body: JSON.stringify(draftPayload()) });
+    const st = document.getElementById('fr-status');
+    if (st) st.textContent = resp.ok ? '✅ Draft autosaved' : '⚠️ Autosave failed';
+  } catch (e) { const st = document.getElementById('fr-status'); if (st) st.textContent = '⚠️ Autosave failed'; }
+}
+// Leaving the page (tab close, refresh, switching pages) flushes any pending edit.
+window.addEventListener('beforeunload', () => { if (autosaveTimer) autosaveDraft(true); });
+
+async function discardDraft() {
+  if (!confirm('Discard your unsaved edits and go back to the original text?')) return;
+  const { movieId, versionId } = frenchCtx;
+  clearTimeout(autosaveTimer); autosaveTimer = null;
+  await fetch(`${API}/movies/${movieId}/versions/${versionId}/draft`, { method: 'DELETE' });
+  loadFrench(`${movieId}-${versionId}`);
+}
+
+async function saveFrench() {
+  const items = {};
+  document.querySelectorAll('.fr-input').forEach(t => { items[t.dataset.ord] = t.value; });
+  const { movieId, versionId } = frenchCtx;
+  clearTimeout(autosaveTimer); autosaveTimer = null;
+  const btn = document.getElementById('fr-save'); btn.disabled = true;
+  try {
+    const resp = await fetch(`${API}/movies/${movieId}/versions/${versionId}/edit`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items, label: document.getElementById('fr-label').value }) });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'Save failed');
+    navigate('movie', movieId);
+  } catch (err) { showError('french-error', err.message); }
+  finally { btn.disabled = false; }
+}
+
+async function translateFrench(ord, btn) {
+  const { movieId, versionId } = frenchCtx;
+  const trigger = btn || document.getElementById('fr-auto');
+  const label = trigger.textContent; trigger.disabled = true; trigger.textContent = 'Translating…';
+  try {
+    const fd = new FormData();
+    fd.append('lang', document.getElementById('fr-lang').value);
+    if (ord !== undefined) fd.append('ord', ord);
+    const resp = await fetch(`${API}/movies/${movieId}/versions/${versionId}/translate`, { method: 'POST', body: fd });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Translation failed (check API key in Settings)');
+    Object.entries(data.translated).forEach(([o, t]) => {
+      const ta = document.querySelector(`.fr-input[data-ord="${o}"]`);
+      if (ta) ta.value = t;
+    });
+    scheduleAutosave();
+  } catch (err) { showError('french-error', err.message); }
+  finally { trigger.disabled = false; trigger.textContent = label; }
+}
+
+async function uploadVersion(e, movieId) {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append('file', document.getElementById('version-file').files[0]);
+  fd.append('label', document.getElementById('version-label').value);
+  const resp = await fetch(`${API}/movies/${movieId}/versions`, { method: 'POST', body: fd });
+  if (!resp.ok) { showError('movie-error', (await resp.json().catch(() => ({}))).detail || 'Upload failed'); return; }
+  loadMovie(movieId);
+}
+
+async function deleteVersion(movieId, versionId) {
+  if (!confirm('Delete this version?')) return;
+  await fetch(`${API}/movies/${movieId}/versions/${versionId}`, { method: 'DELETE' });
+  loadMovie(movieId);
+}
+
+async function compareVersions(e, movieId) {
+  e.preventDefault();
+  const v1 = document.getElementById('mv-v1').value, v2 = document.getElementById('mv-v2').value;
+  if (v1 === v2) { showError('movie-error', 'Pick two different versions'); return; }
+  const btn = document.getElementById('mv-btn'); btn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append('version1_id', v1); fd.append('version2_id', v2);
+    fd.append('compare_mode', document.getElementById('mv-m1').value);
+    fd.append('compare_mode2', document.getElementById('mv-m2').value);
+    const resp = await fetch(`${API}/movies/${movieId}/compare`, { method: 'POST', body: fd });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Compare failed');
+    navigate('detail', data.comparison_id);
+  } catch (err) { showError('movie-error', err.message); }
+  finally { btn.disabled = false; }
 }
 
 // =============================================
