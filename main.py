@@ -50,6 +50,13 @@ def _require_db():
         )
 
 
+def _attachment_header(filename: str) -> str:
+    """Content-Disposition safe for spaces, commas, '&' and non-ASCII (e.g. Arabic) names."""
+    from urllib.parse import quote
+    ascii_name = "".join(c if c.isascii() and c not in '",;\\' else "_" for c in filename)
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename)}"
+
+
 def _db_error(action, exc):
     """Convert any database exception into a JSON-friendly 503."""
     print(f"DB error during {action}: {exc}")
@@ -456,10 +463,10 @@ async def download_bilingual_srt(comparison_id: str):
             raise HTTPException(status_code=404, detail="Comparison not found")
         results = _parse_results(row)
         srt_content = generate_bilingual_srt(results)
-        fname = f"{row['file2_name'].replace('.srt', '')}_bilingual.srt"
+        fname = f"{os.path.splitext(row['file2_name'])[0]}_bilingual.srt"
         return StreamingResponse(
-            io.StringIO(srt_content), media_type="text/plain",
-            headers={"Content-Disposition": f"attachment; filename={fname}"},
+            io.BytesIO(srt_content.encode("utf-8")), media_type="application/x-subrip; charset=utf-8",
+            headers={"Content-Disposition": _attachment_header(fname)},
         )
     except HTTPException:
         raise

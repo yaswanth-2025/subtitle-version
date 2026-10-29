@@ -1478,13 +1478,18 @@ async function updateStatus(id, status) {
 async function downloadSRT(id) {
   try {
     const resp = await fetch(`${API}/comparisons/${id}/download-srt`);
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || `Server error (${resp.status})`);
     const blob = await resp.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `comparison_${id}_bilingual.srt`;
     const cd = resp.headers.get('content-disposition');
-    if (cd) { const m = cd.match(/filename="?(.+)"?/i); if (m) a.download = m[1]; }
+    if (cd) {
+      const star = cd.match(/filename\*=UTF-8''([^;]+)/i);
+      const plain = cd.match(/filename="([^"]+)"/i);
+      if (star) a.download = decodeURIComponent(star[1]); else if (plain) a.download = plain[1];
+    }
     document.body.appendChild(a);
     a.click();
     a.remove();
